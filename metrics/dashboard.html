@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Code Review — Metrics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --surface-page:    #0d0d0d;
+    --surface-card:    #1a1a19;
+    --text-primary:    #ffffff;
+    --text-secondary:  #c3c2b7;
+    --text-muted:      #898781;
+    --gridline:        #2c2c2a;
+    --border:          rgba(255,255,255,0.10);
+    --accent:          #3987e5;
+    --accent-glow:     rgba(57,135,229,0.22);
+    --series-2:        #d95926;
+    /* Status palette is fixed -- never themed, same hex in light and dark. */
+    --status-critical: #d03b3b;
+    --status-warning:  #fab219;
+    --status-good:     #0ca30c;
+    --status-neutral:  #898781;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --surface-page:   #f9f9f7;
+      --surface-card:   #fcfcfb;
+      --text-primary:   #0b0b0b;
+      --text-secondary: #52514e;
+      --text-muted:     #898781;
+      --gridline:       #e1e0d9;
+      --border:         rgba(11,11,11,0.10);
+      --accent:         #2a78d6;
+      --accent-glow:    rgba(42,120,214,0.14);
+      --series-2:       #eb6834;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background:
+      radial-gradient(700px 360px at 100% -10%, var(--accent-glow), transparent 55%),
+      var(--surface-page);
+    color: var(--text-primary);
+  }
+  .page { max-width: 1080px; margin: 0 auto; padding: 40px 24px 64px; }
+
+  .topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  .brand {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--accent); padding: 4px 9px; border: 1px solid var(--accent); border-radius: 6px;
+  }
+  .back-link {
+    font-size: 13px; color: var(--text-muted); text-decoration: none;
+    transition: color 120ms ease;
+  }
+  .back-link:hover { color: var(--text-primary); }
+
+  h1 { font-size: 28px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sub { color: var(--text-secondary); font-size: 14px; margin: 0 0 28px; }
+
+  .controls {
+    display: flex; gap: 10px; align-items: flex-end; margin-bottom: 24px; flex-wrap: wrap;
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  select, button {
+    font-family: inherit; font-size: 13.5px;
+    border-radius: 8px; padding: 9px 14px;
+  }
+  select {
+    background: var(--surface-card); border: 1px solid var(--border); color: var(--text-primary);
+    cursor: pointer;
+  }
+  select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    background: var(--accent); border: none; color: #ffffff; font-weight: 650; cursor: pointer;
+    transition: opacity 120ms ease, transform 120ms ease;
+  }
+  button:hover { opacity: 0.9; }
+  button:active { transform: translateY(1px); }
+
+  #error {
+    color: var(--status-critical); font-size: 13.5px; margin-bottom: 16px; display: none;
+    background: color-mix(in srgb, var(--status-critical) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--status-critical) 40%, transparent);
+    border-radius: 8px; padding: 10px 14px;
+  }
+
+  .stat-row { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat {
+    background: var(--surface-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 20px; min-width: 148px; flex: 1 1 148px;
+  }
+  .stat .value { font-size: 28px; font-weight: 700; line-height: 1.1; }
+  .stat .value.critical { color: var(--status-critical); }
+  .label-row { display: flex; align-items: center; gap: 5px; margin-top: 4px; }
+  .stat .label { font-size: 12px; color: var(--text-muted); }
+
+  .info-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; border-radius: 50%; flex: none;
+    background: var(--border); color: var(--text-muted);
+    font-size: 10px; font-weight: 700; line-height: 1; font-style: normal;
+    cursor: help; position: relative;
+  }
+  .info-icon:hover, .info-icon:focus-visible {
+    background: var(--accent); color: #ffffff; outline: none;
+  }
+  .info-icon::after {
+    content: attr(data-tooltip);
+    position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    width: max-content; max-width: 220px;
+    background: var(--surface-card); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 11.5px; font-weight: 500; line-height: 1.4;
+    text-align: left; white-space: normal;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    opacity: 0; pointer-events: none; transition: opacity 120ms ease;
+    z-index: 20;
+  }
+  .info-icon:hover::after, .info-icon:focus-visible::after { opacity: 1; }
+
+  .panel {
+    background: var(--surface-card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 20px 16px; margin-bottom: 16px;
+    transition: opacity 150ms ease;
+  }
+  .panel.loading { opacity: 0.55; pointer-events: none; }
+  .panel-title {
+    font-size: 13px; font-weight: 650; color: var(--text-secondary); margin-bottom: 14px;
+  }
+  .chart-wrap { height: 280px; }
+  .empty-note { color: var(--text-muted); font-size: 13.5px; padding: 24px 4px; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11.5px; letter-spacing: 0.03em; text-transform: uppercase; }
+  td.cell-critical { color: var(--status-critical); font-weight: 650; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Severity breakdown -- a single part-to-whole stacked bar, built in plain
+     HTML/CSS rather than Chart.js since it's one bar, not a plotted series. */
+  .severity-bar {
+    display: flex; height: 28px; border-radius: 6px; overflow: hidden;
+    background: var(--gridline); margin-bottom: 14px;
+  }
+  .severity-seg {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11.5px; font-weight: 650; color: #ffffff;
+    border-right: 2px solid var(--surface-card);
+    min-width: 0; overflow: hidden; white-space: nowrap;
+  }
+  .severity-seg:last-child { border-right: none; }
+  .severity-legend { display: flex; gap: 18px; flex-wrap: wrap; }
+  .severity-key { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-secondary); }
+  .severity-swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="topbar">
+      <span class="brand">AI Code Review</span>
+      <a class="back-link" href="/">← All dashboards</a>
+    </div>
+
+    <h1 id="title">—</h1>
+    <div class="sub">Reads live from the AI Metrics Platform. Data updates on refresh, not automatically.</div>
+
+    <div class="controls">
+      <label class="field">
+        <span class="field-label">Window</span>
+        <select id="days" onchange="load()">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="3650">All time</option>
+        </select>
+      </label>
+      <button id="refreshBtn" onclick="load()">Refresh</button>
+    </div>
+
+    <div id="error"></div>
+
+    <div class="stat-row" id="stats"></div>
+
+    <div class="panel">
+      <div class="panel-title">PRs reviewed per day</div>
+      <div class="chart-wrap"><canvas id="dayChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">PRs reviewed by repository</div>
+      <div class="chart-wrap"><canvas id="repoChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">By repository</div>
+      <div class="table-wrap">
+        <table id="repoTable">
+          <thead>
+            <tr><th>Repository</th><th>PRs Reviewed</th><th>Avg Comments/PR</th><th>With Comments</th><th>Without Comments</th><th>Errors</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Est. cost per day</div>
+      <div class="chart-wrap"><canvas id="costChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Latency per day (p50 vs p95)</div>
+      <div class="chart-wrap"><canvas id="latencyChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Comment severity breakdown</div>
+      <div id="severityWrap"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Most-commented files</div>
+      <div class="table-wrap">
+        <table id="filesTable">
+          <thead>
+            <tr><th>Repository</th><th>File</th><th class="num">Comments</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Errors by type</div>
+      <div class="table-wrap">
+        <table id="errorTypeTable">
+          <thead>
+            <tr><th>Error type</th><th class="num">Count</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">By engine version</div>
+      <div class="table-wrap">
+        <table id="engineTable">
+          <thead>
+            <tr><th>Engine version</th><th class="num">Runs</th><th class="num">Errors</th><th class="num">Partial</th><th class="num">Est. Cost</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">By model</div>
+      <div class="table-wrap">
+        <table id="modelTable">
+          <thead>
+            <tr><th>Model</th><th class="num">Runs</th><th class="num">Errors</th><th class="num">Avg Latency</th><th class="num">Total Tokens</th><th class="num">Est. Cost</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+// Same registry as the landing page -- keep names in sync if this list grows.
+const FEATURE_META = {
+  'ai-code-review': { name: 'AI Code Review' },
+};
+
+function prettify(name) {
+  return name.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const params = new URLSearchParams(location.search);
+const FEATURE = params.get('feature');
+
+let chart = null;
+let dayChart = null;
+let costChart = null;
+let latencyChart = null;
+
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+function formatUSD(n) {
+  const v = Number(n) || 0;
+  return '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatMs(ms) {
+  const v = Number(ms) || 0;
+  if (v === 0) return '—';
+  if (v < 1000) return Math.round(v) + 'ms';
+  const totalSec = v / 1000;
+  if (totalSec < 60) return totalSec.toFixed(1) + 's';
+  const min = Math.floor(totalSec / 60);
+  const sec = Math.round(totalSec % 60);
+  return `${min}m ${sec}s`;
+}
+
+function formatPercent(fraction) {
+  const v = Number(fraction) || 0;
+  return (v * 100).toFixed(1) + '%';
+}
+
+function setTitle() {
+  const meta = FEATURE_META[FEATURE] || { name: prettify(FEATURE) };
+  document.title = `${meta.name} — Metrics`;
+  document.getElementById('title').textContent = meta.name;
+}
+
+function statTile(label, value, isCritical = false, tooltip = '') {
+  const tile = document.createElement('div');
+  tile.className = 'stat';
+  const val = document.createElement('div');
+  val.className = 'value' + (isCritical ? ' critical' : '');
+  val.textContent = value;
+
+  const labelRow = document.createElement('div');
+  labelRow.className = 'label-row';
+  const lab = document.createElement('div');
+  lab.className = 'label';
+  lab.textContent = label;
+  labelRow.appendChild(lab);
+  if (tooltip) {
+    const info = document.createElement('span');
+    info.className = 'info-icon';
+    info.textContent = 'i';
+    info.dataset.tooltip = tooltip; // rendered via CSS content: attr(data-tooltip)
+    info.tabIndex = 0; // keyboard-focusable, so the tooltip isn't hover-only
+    info.setAttribute('role', 'img');
+    info.setAttribute('aria-label', tooltip);
+    labelRow.appendChild(info);
+  }
+
+  tile.append(val, labelRow);
+  return tile;
+}
+
+async function load() {
+  const days = document.getElementById('days').value;
+  const errorEl = document.getElementById('error');
+  errorEl.style.display = 'none';
+  const panels = document.querySelectorAll('.panel');
+  panels.forEach(p => p.classList.add('loading')); // hold previous render, dimmed, while refetching
+
+  try {
+    const resp = await fetch(`/metrics/summary?feature=${encodeURIComponent(FEATURE)}&days=${days}`);
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`HTTP ${resp.status}: ${body}`);
+    }
+    const data = await resp.json();
+    render(data);
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.style.display = 'block';
+  } finally {
+    panels.forEach(p => p.classList.remove('loading'));
+  }
+}
+
+function render(data) {
+  const stats = document.getElementById('stats');
+  stats.innerHTML = '';
+  const errors = data.totalErrors ?? 0;
+  const errorRate = data.errorRate ?? 0;
+  stats.append(
+    statTile('Total events', data.totalEvents ?? 0, false,
+      'Every event ingested in this window, including successful reviews and failed runs.'),
+    statTile('PRs reviewed', data.totalPRsReviewed ?? 0, false,
+      'Distinct pull requests reviewed in this window, deduplicated by repository + PR ID even if reviewed more than once.'),
+    statTile('Reviews with comments', data.totalReviewsWithComments ?? 0, false,
+      'Review runs where at least one comment was posted to the PR.'),
+    statTile('Reviews without comments', data.totalReviewsWithoutComments ?? 0, false,
+      'Review runs that completed cleanly with no comments posted -- the AI found nothing to flag.'),
+    statTile('Errors', errors, errors > 0,
+      'Review runs that failed outright (e.g. the model call errored, or returned something unusable) before a review could complete.'),
+    statTile('Partial reviews', data.totalPartial ?? 0, (data.totalPartial ?? 0) > 0,
+      'Review runs where some batches failed and the rest were posted. Only newer engine versions report this.'),
+    statTile('Error rate', formatPercent(errorRate), errorRate > 0,
+      'Errors as a share of all events in this window (errors ÷ total events).'),
+    statTile('Est. cost', formatUSD(data.totalEstCostUsd), false,
+      'Estimated $ spend from prompt + completion tokens, priced per the model used on each run. Runs on a model with no configured price contribute $0.'),
+    statTile('Avg latency', formatMs(data.avgLatencyMs), false,
+      'Average wall-clock time per review call, across all runs that reported a latency.'),
+    statTile('P95 latency', formatMs(data.p95LatencyMs), false,
+      '95th percentile latency -- 95% of reviews finished faster than this.'),
+    statTile('Dedup rate', formatPercent(data.dedupRate), false,
+      'Share of AI-proposed comments filtered out as duplicates of an existing PR comment (skipped ÷ proposed).'),
+  );
+
+  const repos = data.byRepository || [];
+  renderTable(repos);
+  renderChart(repos);
+  renderDayChart(data.byDay || []);
+  renderCostChart(data.byDayCost || []);
+  renderLatencyChart(data.byDayLatency || []);
+  renderSeverity(data.severityBreakdown || {});
+  renderTopFiles(data.topFiles || []);
+  renderErrorTypes(data.byErrorType || []);
+  renderModelTable(data.byModel || []);
+  renderEngineTable(data.byEngineVersion || []);
+}
+
+function renderTable(repos) {
+  const tbody = document.querySelector('#repoTable tbody');
+  tbody.innerHTML = '';
+  for (const r of repos) {
+    const tr = document.createElement('tr');
+    const plainCells = [
+      r.repository || '(none)',
+      r.prsReviewed,
+      (r.avgCommentsPerPR ?? 0).toFixed(2),
+      r.reviewsWithComments,
+      r.reviewsWithoutComments,
+    ];
+    for (const c of plainCells) {
+      const td = document.createElement('td');
+      td.textContent = c; // repo names come from event data -- textContent, never innerHTML
+      tr.appendChild(td);
+    }
+    const errTd = document.createElement('td');
+    errTd.textContent = r.errors ?? 0;
+    if (r.errors > 0) errTd.classList.add('cell-critical');
+    tr.appendChild(errTd);
+    tbody.appendChild(tr);
+  }
+}
+
+function renderChart(repos) {
+  const canvas = document.getElementById('repoChart');
+  const chartWrap = canvas.closest('.chart-wrap');
+  const existingNote = chartWrap.querySelector('.empty-note');
+  if (existingNote) existingNote.remove();
+
+  if (chart) { chart.destroy(); chart = null; }
+
+  if (repos.length === 0) {
+    const note = document.createElement('div');
+    note.className = 'empty-note';
+    note.textContent = 'No data in this window.';
+    chartWrap.appendChild(note);
+    return;
+  }
+
+  const labels = repos.map(r => r.repository || '(none)');
+  const values = repos.map(r => r.prsReviewed);
+
+  const accent = cssVar('--accent');
+  const surface = cssVar('--surface-card');
+  const textPrimary = cssVar('--text-primary');
+  const textSecondary = cssVar('--text-secondary');
+  const textMuted = cssVar('--text-muted');
+  const gridline = cssVar('--gridline');
+  const border = cssVar('--border');
+
+  chart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: accent,
+        borderRadius: 4,
+        borderSkipped: false,
+        barThickness: 22,
+        categoryPercentage: 0.6,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }, // single series -- the panel title already names it
+        tooltip: {
+          backgroundColor: surface,
+          titleColor: textPrimary,
+          bodyColor: textSecondary,
+          borderColor: border,
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 8,
+          displayColors: false,
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: textMuted, font: { size: 12 } },
+          grid: { display: false },
+        },
+        y: {
+          ticks: { color: textMuted, font: { size: 12 }, precision: 0 },
+          grid: { color: gridline },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+}
+
+function formatDayLabel(dateStr) {
+  // dateStr is YYYY-MM-DD (UTC); parse as UTC so the label doesn't shift a
+  // day in timezones behind UTC.
+  const d = new Date(dateStr + 'T00:00:00Z');
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
+
+function renderDayChart(days) {
+  const canvas = document.getElementById('dayChart');
+  const chartWrap = canvas.closest('.chart-wrap');
+  const existingNote = chartWrap.querySelector('.empty-note');
+  if (existingNote) existingNote.remove();
+
+  if (dayChart) { dayChart.destroy(); dayChart = null; }
+
+  if (days.length === 0) {
+    const note = document.createElement('div');
+    note.className = 'empty-note';
+    note.textContent = 'No data in this window.';
+    chartWrap.appendChild(note);
+    return;
+  }
+
+  const labels = days.map(d => formatDayLabel(d.date));
+  const values = days.map(d => d.prsReviewed);
+
+  const accent = cssVar('--accent');
+  const surface = cssVar('--surface-card');
+  const textPrimary = cssVar('--text-primary');
+  const textSecondary = cssVar('--text-secondary');
+  const textMuted = cssVar('--text-muted');
+  const gridline = cssVar('--gridline');
+  const border = cssVar('--border');
+
+  dayChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: accent,
+        borderRadius: 4,
+        borderSkipped: false,
+        categoryPercentage: 0.7,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }, // single series -- the panel title already names it
+        tooltip: {
+          backgroundColor: surface,
+          titleColor: textPrimary,
+          bodyColor: textSecondary,
+          borderColor: border,
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 8,
+          displayColors: false,
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: textMuted, font: { size: 12 }, autoSkip: true, maxRotation: 0 },
+          grid: { display: false },
+        },
+        y: {
+          ticks: { color: textMuted, font: { size: 12 }, precision: 0 },
+          grid: { color: gridline },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+}
+
+function renderCostChart(days) {
+  const canvas = document.getElementById('costChart');
+  const chartWrap = canvas.closest('.chart-wrap');
+  const existingNote = chartWrap.querySelector('.empty-note');
+  if (existingNote) existingNote.remove();
+
+  if (costChart) { costChart.destroy(); costChart = null; }
+
+  if (days.length === 0) {
+    const note = document.createElement('div');
+    note.className = 'empty-note';
+    note.textContent = 'No data in this window.';
+    chartWrap.appendChild(note);
+    return;
+  }
+
+  const labels = days.map(d => formatDayLabel(d.date));
+  const values = days.map(d => d.estCostUsd);
+
+  const accent = cssVar('--accent');
+  const surface = cssVar('--surface-card');
+  const textPrimary = cssVar('--text-primary');
+  const textSecondary = cssVar('--text-secondary');
+  const textMuted = cssVar('--text-muted');
+  const gridline = cssVar('--gridline');
+  const border = cssVar('--border');
+
+  costChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        borderColor: accent,
+        backgroundColor: accent + '1a', // ~10% wash, per mark spec
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        pointBackgroundColor: accent,
+        pointBorderColor: surface,
+        pointBorderWidth: 2,
+        fill: true,
+        tension: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }, // single series -- the panel title already names it
+        tooltip: {
+          backgroundColor: surface,
+          titleColor: textPrimary,
+          bodyColor: textSecondary,
+          borderColor: border,
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 8,
+          displayColors: false,
+          callbacks: { label: (ctx) => formatUSD(ctx.parsed.y) },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: textMuted, font: { size: 12 }, autoSkip: true, maxRotation: 0 },
+          grid: { display: false },
+        },
+        y: {
+          ticks: { color: textMuted, font: { size: 12 }, callback: (v) => formatUSD(v) },
+          grid: { color: gridline },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+}
+
+function renderLatencyChart(days) {
+  const canvas = document.getElementById('latencyChart');
+  const chartWrap = canvas.closest('.chart-wrap');
+  const existingNote = chartWrap.querySelector('.empty-note');
+  if (existingNote) existingNote.remove();
+
+  if (latencyChart) { latencyChart.destroy(); latencyChart = null; }
+
+  const hasData = days.some(d => d.p50Ms > 0 || d.p95Ms > 0);
+  if (days.length === 0 || !hasData) {
+    const note = document.createElement('div');
+    note.className = 'empty-note';
+    note.textContent = 'No data in this window.';
+    chartWrap.appendChild(note);
+    return;
+  }
+
+  const labels = days.map(d => formatDayLabel(d.date));
+  const p50 = days.map(d => d.p50Ms);
+  const p95 = days.map(d => d.p95Ms);
+
+  const accent = cssVar('--accent');
+  const series2 = cssVar('--series-2');
+  const surface = cssVar('--surface-card');
+  const textPrimary = cssVar('--text-primary');
+  const textSecondary = cssVar('--text-secondary');
+  const textMuted = cssVar('--text-muted');
+  const gridline = cssVar('--gridline');
+  const border = cssVar('--border');
+
+  latencyChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'p50',
+          data: p50,
+          borderColor: accent,
+          backgroundColor: accent,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBorderColor: surface,
+          pointBorderWidth: 2,
+          tension: 0,
+        },
+        {
+          label: 'p95',
+          data: p95,
+          borderColor: series2,
+          backgroundColor: series2,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBorderColor: surface,
+          pointBorderWidth: 2,
+          tension: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          // Two series -- identity must not rely on color-matching alone.
+          display: true,
+          position: 'top',
+          align: 'end',
+          labels: { color: textSecondary, boxWidth: 10, boxHeight: 10, usePointStyle: true, font: { size: 12 } },
+        },
+        tooltip: {
+          backgroundColor: surface,
+          titleColor: textPrimary,
+          bodyColor: textSecondary,
+          borderColor: border,
+          borderWidth: 1,
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatMs(ctx.parsed.y)}` },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: textMuted, font: { size: 12 }, autoSkip: true, maxRotation: 0 },
+          grid: { display: false },
+        },
+        y: {
+          ticks: { color: textMuted, font: { size: 12 }, callback: (v) => formatMs(v) },
+          grid: { color: gridline },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+}
+
+function renderSeverity(sev) {
+  const wrap = document.getElementById('severityWrap');
+  wrap.innerHTML = '';
+
+  // Severity is inherently a status/severity scale, so segments borrow the
+  // fixed status palette (critical/warning) rather than arbitrary categorical
+  // hues; "suggestion" reads as the positive/minor end (good), "unknown" as
+  // neutral absence-of-classification, not a real severity level.
+  const segments = [
+    { label: 'Critical', color: 'var(--status-critical)', count: sev.critical ?? 0 },
+    { label: 'Warning', color: 'var(--status-warning)', count: sev.warning ?? 0 },
+    { label: 'Suggestion', color: 'var(--status-good)', count: sev.suggestion ?? 0 },
+    { label: 'Unknown', color: 'var(--status-neutral)', count: sev.unknown ?? 0 },
+  ];
+  const total = segments.reduce((sum, s) => sum + s.count, 0);
+
+  if (total === 0) {
+    const note = document.createElement('div');
+    note.className = 'empty-note';
+    note.textContent = 'No comments posted in this window.';
+    wrap.appendChild(note);
+    return;
+  }
+
+  const bar = document.createElement('div');
+  bar.className = 'severity-bar';
+  for (const s of segments) {
+    if (s.count === 0) continue;
+    const pct = (s.count / total) * 100;
+    const seg = document.createElement('div');
+    seg.className = 'severity-seg';
+    seg.style.width = pct + '%';
+    seg.style.background = s.color;
+    seg.title = `${s.label}: ${s.count} (${pct.toFixed(1)}%)`;
+    // Only label segments wide enough to hold text without clipping --
+    // narrower ones rely on the legend below and the title tooltip.
+    if (pct >= 8) seg.textContent = String(s.count);
+    bar.appendChild(seg);
+  }
+  wrap.appendChild(bar);
+
+  const legend = document.createElement('div');
+  legend.className = 'severity-legend';
+  for (const s of segments) {
+    const key = document.createElement('div');
+    key.className = 'severity-key';
+    const sw = document.createElement('span');
+    sw.className = 'severity-swatch';
+    sw.style.background = s.color;
+    const pct = (s.count / total) * 100;
+    key.append(sw, document.createTextNode(`${s.label}: ${s.count} (${pct.toFixed(1)}%)`));
+    legend.appendChild(key);
+  }
+  wrap.appendChild(legend);
+}
+
+function renderTopFiles(files) {
+  const tbody = document.querySelector('#filesTable tbody');
+  tbody.innerHTML = '';
+  if (files.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 3;
+    td.className = 'empty-note';
+    td.textContent = 'No commented files in this window.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  for (const f of files) {
+    const tr = document.createElement('tr');
+    const repoTd = document.createElement('td');
+    repoTd.textContent = f.repository || '(none)';
+    const fileTd = document.createElement('td');
+    fileTd.textContent = f.file; // file paths come from event data -- textContent, never innerHTML
+    fileTd.style.whiteSpace = 'normal';
+    fileTd.style.wordBreak = 'break-all';
+    const countTd = document.createElement('td');
+    countTd.className = 'num';
+    countTd.textContent = f.comments;
+    tr.append(repoTd, fileTd, countTd);
+    tbody.appendChild(tr);
+  }
+}
+
+function renderErrorTypes(types) {
+  const tbody = document.querySelector('#errorTypeTable tbody');
+  tbody.innerHTML = '';
+  if (types.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 2;
+    td.className = 'empty-note';
+    td.textContent = 'No errors in this window.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  for (const t of types) {
+    const tr = document.createElement('tr');
+    const typeTd = document.createElement('td');
+    typeTd.textContent = t.errorType;
+    const countTd = document.createElement('td');
+    countTd.className = 'num cell-critical';
+    countTd.textContent = t.count;
+    tr.append(typeTd, countTd);
+    tbody.appendChild(tr);
+  }
+}
+
+function renderModelTable(models) {
+  const tbody = document.querySelector('#modelTable tbody');
+  tbody.innerHTML = '';
+  if (models.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.className = 'empty-note';
+    td.textContent = 'No data in this window.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  for (const m of models) {
+    const tr = document.createElement('tr');
+
+    const modelTd = document.createElement('td');
+    modelTd.textContent = m.model || '(unknown)';
+    const runsTd = document.createElement('td');
+    runsTd.className = 'num';
+    runsTd.textContent = m.runs ?? 0;
+    const errTd = document.createElement('td');
+    errTd.className = 'num' + ((m.errors ?? 0) > 0 ? ' cell-critical' : '');
+    errTd.textContent = m.errors ?? 0;
+    const latTd = document.createElement('td');
+    latTd.className = 'num';
+    latTd.textContent = formatMs(m.avgLatencyMs);
+    const tokTd = document.createElement('td');
+    tokTd.className = 'num';
+    tokTd.textContent = Math.round(m.totalTokens ?? 0).toLocaleString();
+    const costTd = document.createElement('td');
+    costTd.className = 'num';
+    costTd.textContent = formatUSD(m.estCostUsd);
+
+    tr.append(modelTd, runsTd, errTd, latTd, tokTd, costTd);
+    tbody.appendChild(tr);
+  }
+}
+
+function renderEngineTable(rows) {
+  const tbody = document.querySelector('#engineTable tbody');
+  tbody.innerHTML = '';
+  if (rows.length === 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 5;
+    td.className = 'empty-note';
+    td.textContent = 'No data in this window.';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  for (const r of rows) {
+    const tr = document.createElement('tr');
+    const verTd = document.createElement('td');
+    verTd.textContent = r.engineVersion || '(unknown)';
+    const runsTd = document.createElement('td');
+    runsTd.className = 'num';
+    runsTd.textContent = r.runs ?? 0;
+    const errTd = document.createElement('td');
+    errTd.className = 'num' + ((r.errors ?? 0) > 0 ? ' cell-critical' : '');
+    errTd.textContent = r.errors ?? 0;
+    const partTd = document.createElement('td');
+    partTd.className = 'num';
+    partTd.textContent = r.partial ?? 0;
+    const costTd = document.createElement('td');
+    costTd.className = 'num';
+    costTd.textContent = formatUSD(r.estCostUsd);
+    tr.append(verTd, runsTd, errTd, partTd, costTd);
+    tbody.appendChild(tr);
+  }
+}
+
+if (!FEATURE) {
+  location.href = '/';
+} else {
+  setTitle();
+  load();
+}
+</script>
+</body>
+</html>

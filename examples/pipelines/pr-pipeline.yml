@@ -1,0 +1,33 @@
+# Example PR pipeline for a consuming repository.
+# Azure Repos runs it through a build validation policy on the target branch.
+
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+resources:
+  repositories:
+    - repository: templates
+      type: git                              # or: github, with endpoint: <GitHub service connection>
+      name: <project>/ado-ai-code-review      # your imported copy of this repository
+      ref: refs/tags/v1.0.0
+
+stages:
+  - stage: Build
+    jobs:
+      - job: Build
+        steps:
+          - script: echo "build and test your code here"
+
+  # Runs after Build succeeds. Posts review comments on the pull request.
+  - template: ai-code-review/stage-template.yml@templates
+    parameters:
+      azureSubscription: 'my-ai-review-connection'
+      promptFile: 'pipelines/ai-code-review/my-repo.rules.md'
+      promptMode: rules
+      foundryAuth: entra
+      modelVariableGroup: 'ai-code-review'
+      # metricsVariableGroup: 'ai-code-review-metrics'   # optional dashboard
+      # reviewPathSpec: 'src/**/*.ts'                   # optional: only review these paths
+      # reviewDeletedFiles: true

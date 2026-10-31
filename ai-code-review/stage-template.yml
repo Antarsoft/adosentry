@@ -1,0 +1,253 @@
+parameters:
+  - name: promptFile
+    type: string
+  # 'legacy' (default): promptFile is the repo's complete prompt. 'rules': promptFile is the repo's
+  # short rules file and the engine adds its shared base prompt (prompts/base.codereviewprompt.md).
+  - name: promptMode
+    type: string
+    default: "legacy"
+    values:
+      - legacy
+      - rules
+  # Azure Resource Manager service connection the review runs as. Its identity must be able to
+  # comment on pull requests (member of the Azure DevOps organisation) and, with foundryAuth: entra,
+  # hold the Cognitive Services OpenAI User role on the model's Azure OpenAI / Foundry resource.
+  - name: azureSubscription
+    type: string
+  # Variable group with modelName, modelDeploymentUrl, reasoningEffort (and foundry-key for key auth).
+  - name: modelVariableGroup
+    type: string
+    default: "ai-code-review"
+  # Optional variable group with aiMetricsApiUrl and aiMetricsApiKey. Leave empty to send no metrics.
+  - name: metricsVariableGroup
+    type: string
+    default: ""
+  - name: continueOnError
+    type: boolean
+    default: false
+  # Set to 'true' to log the full diff for one pipeline. Leave empty to use the
+  # aiReviewDebugLogging variable from the model variable group (false when unset).
+  - name: aiReviewDebugLogging
+    type: string
+    default: ""
+  - name: reviewPathSpec
+    type: string
+    default: ""
+  - name: reviewExcludePathSpec
+    type: string
+    default: ""
+  - name: reviewMaxFilesPerBatch
+    type: number
+    default: 25
+  - name: reviewMaxBatchTokens
+    type: number
+    default: 300000
+  - name: reviewMaxFileTokens
+    type: number
+    default: 80000
+  - name: reviewDeletedFiles
+    type: boolean
+    default: false
+  - name: reviewDefaultExcludes
+    type: boolean
+    default: true
+  # 'key' uses the foundry-key variable. 'entra' signs in with the service connection's
+  # identity instead (it needs the Cognitive Services OpenAI User role on the Foundry account).
+  - name: foundryAuth
+    type: string
+    default: "key"
+    values:
+      - key
+      - entra
+  - name: foundryTokenResource
+    type: string
+    default: "https://ai.azure.com"
+
+stages:
+  - stage: AICodeReview
+    displayName: "AI Code Review"
+    variables:
+      - group: ${{ parameters.modelVariableGroup }}
+      - ${{ if ne(parameters.metricsVariableGroup, '') }}:
+          - group: ${{ parameters.metricsVariableGroup }}
+      - ${{ if ne(parameters.aiReviewDebugLogging, '') }}:
+          - name: aiReviewDebugLogging
+            value: ${{ parameters.aiReviewDebugLogging }}
+    jobs:
+      - job: AICodeReviewJob
+        displayName: "Automated Code Reviewer"
+        steps:
+          # Explicit `path:` on both checkouts keeps paths stable regardless of the
+          # consuming repo's name -- with multiple checkouts, ADO otherwise places
+          # each repo under $(Pipeline.Workspace)/<repo-name>, which would make the
+          # script path below different in every consuming repo.
+          - checkout: self
+            path: s
+            fetchDepth: 0
+
+          - checkout: templates
+            path: templates
+            fetchDepth: 1
+
+          - task: AzurePowerShell@5
+            displayName: "Run AI Code Review"
+            continueOnError: ${{ parameters.continueOnError }}
+            inputs:
+              azureSubscription: ${{ parameters.azureSubscription }}
+              ScriptType: "InlineScript"
+              azurePowerShellVersion: LatestVersion
+              pwsh: true
+              Inline: |
+                Import-Module "$(Pipeline.Workspace)/templates/ai-code-review/AICodeReview.psd1" -Force -ErrorAction Stop
+
+                $reviewResult = $null
+                $postResult = $null
+                $reviewFailure = $null
+                $partialFailure = $null
+                $errorType = $null
+                $errorStatusCode = $null
+                $phase = 'history'
+
+                try {
+                    $existingThreadData = Get-ExistingReviewThreads `
+                      -Organization ("$(System.CollectionUri)" -split "/" | Select-Object -index 3) `
+                      -PullRequestId $(System.PullRequest.PullRequestId) `
+                      -Project $(System.TeamProject) `
+                      -RepositoryName $(Build.Repository.Name)
+
+                    $phase = 'review'
+                    $reviewResult = Invoke-LLMCodeReview `
+                      -SourceBranch $(System.PullRequest.SourceBranch) `
+                      -TargetBranch $(System.PullRequest.TargetBranch) `
+                      -PathToReviewFile '$(Build.SourcesDirectory)/${{ parameters.promptFile }}' `
+                      -ModelName '$(modelName)' `
+                      -ModelDeploymentUrl '$(modelDeploymentUrl)' `
+                      -ReasoningEffort '$(reasoningEffort)' `
+                      -Key $env:FOUNDRY_KEY `
+                      -AuthMode '${{ parameters.foundryAuth }}' `
+                      -PromptMode '${{ parameters.promptMode }}' `
+                      -BasePromptFile '$(Pipeline.Workspace)/templates/ai-code-review/prompts/base.codereviewprompt.md' `
+                      -TokenResource '${{ parameters.foundryTokenResource }}' `
+                      -LogFullDiff '$(aiReviewDebugLogging)' `
+                      -PriorReviewHistory $existingThreadData.Threads `
+                      -PathSpec '${{ parameters.reviewPathSpec }}' `
+                      -ExcludePathSpec '${{ parameters.reviewExcludePathSpec }} ${{ parameters.promptFile }}' `
+                      -MaxFilesPerBatch ${{ parameters.reviewMaxFilesPerBatch }} `
+                      -MaxBatchTokens ${{ parameters.reviewMaxBatchTokens }} `
+                      -MaxFileTokens ${{ parameters.reviewMaxFileTokens }} `
+                      -ReviewDeletedFiles '${{ parameters.reviewDeletedFiles }}' `
+                      -UseDefaultExcludes '${{ parameters.reviewDefaultExcludes }}'
+
+                    $phase = 'post'
+                    $postResult = Set-PullRequestComments `
+                      -Organization ("$(System.CollectionUri)" -split "/" | Select-Object -index 3) `
+                      -PullRequestId $(System.PullRequest.PullRequestId) `
+                      -Project $(System.TeamProject) `
+                      -RepositoryName $(Build.Repository.Name) `
+                      -Reviews $reviewResult.Content `
+                      -ExistingThreads $existingThreadData.Threads
+
+                    # Some batches failed: the comments from the others are already posted above.
+                    # Report the run as partial, then fail the step after the metrics are sent.
+                    $failedBatchList = @($reviewResult.FailedBatches)
+                    if ($failedBatchList.Count -gt 0) {
+                        $firstFailure = $failedBatchList[0]
+                        $partialFailure = "AI review incomplete: $($failedBatchList.Count) of $($reviewResult.BatchCount) batch(es) failed. First error: $($firstFailure.Message)"
+                        Write-Host $partialFailure
+                        $errorType = $firstFailure.ErrorType
+                        $errorStatusCode = $firstFailure.StatusCode
+                        $reviewFailure = [System.Management.Automation.ErrorRecord]::new(
+                            [System.Exception]::new($partialFailure), 'PartialReview', [System.Management.Automation.ErrorCategory]::NotSpecified, $null)
+                    }
+                }
+                catch {
+                    $reviewFailure = $_
+                    Write-Host "AI Code Review failed: $($reviewFailure.Exception.Message)"
+
+                    $errorInfo = Get-ReviewErrorInfo -Message $reviewFailure.Exception.Message
+                    $errorType = $errorInfo.ErrorType
+                    $errorStatusCode = $errorInfo.StatusCode
+                    if ($phase -eq 'post') {
+                        # The review itself worked but its comments could not be posted.
+                        $errorType = 'post-failed'
+                        $errorStatusCode = $null
+                    }
+                }
+
+                $runOutcome = if ($partialFailure) { 'partial' } elseif ($errorType) { 'error' } else { $postResult.Outcome }
+                $engineVersion = 'unknown'
+                try {
+                    $engineVersion = Get-EngineVersion -TemplatesPath "$(Pipeline.Workspace)/templates"
+                    Write-Host (Format-ReviewSummary -ReviewResult $reviewResult -PostResult $postResult -Outcome $runOutcome -ErrorType $errorType)
+                }
+                catch {
+                    Write-Warning "Could not build the run summary: $_"
+                }
+
+                $metricsUrl = [string]$env:AI_METRICS_API_URL
+                if (-not $metricsUrl -or $metricsUrl.StartsWith('$(')) {
+                    Write-Host "Metrics are not configured (no aiMetricsApiUrl); skipping the metrics event."
+                } else {
+                try {
+                    $metricsEvent = [ordered]@{
+                        featureName = 'ai-code-review'
+                        source      = 'ado-pipeline'
+                        custom      = [ordered]@{
+                            adoProject               = '$(System.TeamProject)'
+                            repository               = '$(Build.Repository.Name)'
+                            prId                     = '$(System.PullRequest.PullRequestId)'
+                            pipelineRunId            = '$(Build.BuildId)'
+                            sourceBranch             = '$(System.PullRequest.SourceBranch)'
+                            targetBranch             = '$(System.PullRequest.TargetBranch)'
+                            filesReviewed            = if ($reviewResult) { $reviewResult.FilesReviewed } else { 0 }
+                            totalFilesChanged        = if ($reviewResult) { $reviewResult.TotalFilesChanged } else { 0 }
+                            filesExcluded            = if ($reviewResult) { $reviewResult.FilesExcluded } else { 0 }
+                            filesRenamed             = if ($reviewResult) { $reviewResult.FilesRenamed } else { 0 }
+                            filesDeleted             = if ($reviewResult) { $reviewResult.FilesDeleted } else { 0 }
+                            filesTruncated           = if ($reviewResult) { $reviewResult.FilesTruncated } else { 0 }
+                            batchesSplit             = if ($reviewResult) { $reviewResult.BatchesSplit } else { 0 }
+                            commentsSnapped          = if ($reviewResult) { $reviewResult.CommentsSnapped } else { 0 }
+                            commentsInvalid          = if ($reviewResult) { $reviewResult.CommentsInvalid } else { 0 }
+                            batchesFailed            = if ($reviewResult) { @($reviewResult.FailedBatches).Count } else { 0 }
+                            engineVersion            = $engineVersion
+                            reviewBatchCount         = if ($reviewResult) { $reviewResult.BatchCount } else { 0 }
+                            linesAdded               = if ($reviewResult) { $reviewResult.LinesAdded } else { 0 }
+                            linesRemoved             = if ($reviewResult) { $reviewResult.LinesRemoved } else { 0 }
+                            commentsProposed         = if ($postResult) { $postResult.CommentsProposed } else { 0 }
+                            commentsCount            = if ($postResult) { $postResult.CommentsPosted } else { 0 }
+                            commentsSkippedDuplicate = if ($postResult) { $postResult.CommentsSkippedDuplicate } else { 0 }
+                            outcome                  = $runOutcome
+                            severityBreakdown        = if ($postResult) { $postResult.SeverityBreakdown } else { @{ critical = 0; warning = 0; suggestion = 0; unknown = 0 } }
+                            filesWithComments        = if ($postResult) { $postResult.FilesWithComments } else { @() }
+                            latencyMs                = if ($reviewResult) { $reviewResult.LatencyMs } else { 0 }
+                            promptTokens             = if ($reviewResult) { $reviewResult.PromptTokens } else { 0 }
+                            completionTokens         = if ($reviewResult) { $reviewResult.CompletionTokens } else { 0 }
+                            reasoningTokens          = if ($reviewResult) { $reviewResult.ReasoningTokens } else { 0 }
+                            tokensUsed               = if ($reviewResult) { $reviewResult.TotalTokens } else { 0 }
+                            model                    = '$(modelName)'
+                        }
+                    }
+                    if ($errorType) {
+                        $metricsEvent.custom.errorType = $errorType
+                        if ($errorStatusCode) { $metricsEvent.custom.errorStatusCode = $errorStatusCode }
+                    }
+
+                    Invoke-RestMethod -Uri "$($metricsUrl.TrimEnd('/'))/events" `
+                        -Method Post `
+                        -Headers @{ 'X-Api-Key' = $env:AI_METRICS_API_KEY } `
+                        -ContentType 'application/json' `
+                        -Body ($metricsEvent | ConvertTo-Json -Depth 10) | Out-Null
+                    Write-Host "AI Code Review metrics event sent."
+                }
+                catch {
+                    Write-Warning "Failed to send AI Code Review metrics event: $_"
+                }
+                }
+
+                if ($reviewFailure) {
+                    throw $reviewFailure
+                }
+            env:
+              FOUNDRY_KEY: $(foundry-key)
+              AI_METRICS_API_URL: $(aiMetricsApiUrl)
+              AI_METRICS_API_KEY: $(aiMetricsApiKey)

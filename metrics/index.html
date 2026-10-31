@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Code Review — Metrics</title>
+<style>
+  :root {
+    --surface-page:       #0d0d0d;
+    --surface-card:       #1a1a19;
+    --surface-card-hover: #212120;
+    --text-primary:       #ffffff;
+    --text-secondary:     #c3c2b7;
+    --text-muted:         #898781;
+    --border:             rgba(255,255,255,0.10);
+    --accent:             #3987e5;
+    --accent-glow:        rgba(57,135,229,0.30);
+    --status-critical:    #d03b3b;
+    --status-warning:     #d69a34;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --surface-page:       #f9f9f7;
+      --surface-card:       #fcfcfb;
+      --surface-card-hover: #f3f2ee;
+      --text-primary:       #0b0b0b;
+      --text-secondary:     #52514e;
+      --text-muted:         #898781;
+      --border:             rgba(11,11,11,0.10);
+      --accent:             #2a78d6;
+      --accent-glow:        rgba(42,120,214,0.16);
+      --status-warning:     #a6740f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background:
+      radial-gradient(900px 480px at 15% -10%, var(--accent-glow), transparent 60%),
+      var(--surface-page);
+    color: var(--text-primary);
+  }
+  .page { max-width: 1080px; margin: 0 auto; padding: 64px 24px 72px; }
+  .brand {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.16em;
+    color: var(--accent); text-transform: uppercase;
+    padding: 5px 11px; margin-bottom: 22px;
+    border: 1px solid var(--accent); border-radius: 7px;
+  }
+  h1 {
+    font-size: 34px; font-weight: 700; margin: 0 0 12px; letter-spacing: -0.015em;
+  }
+  .sub {
+    color: var(--text-secondary); font-size: 15px; line-height: 1.55;
+    margin: 0 0 44px; max-width: 62ch;
+  }
+  .section-label {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-muted); margin: 0 0 14px;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px 24px 22px;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
+  }
+  .card::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(160px 100px at 0% 0%, var(--accent-glow), transparent 70%);
+    opacity: 0; transition: opacity 160ms ease; pointer-events: none;
+  }
+  .card:hover { border-color: var(--accent); background: var(--surface-card-hover); transform: translateY(-2px); }
+  .card:hover::before { opacity: 1; }
+  .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .card-name { font-size: 18px; font-weight: 650; margin: 0 0 8px; position: relative; }
+  .card-desc {
+    font-size: 13.5px; color: var(--text-secondary); line-height: 1.55;
+    margin: 0 0 20px; position: relative;
+  }
+  .card-cta {
+    font-size: 13px; font-weight: 650; color: var(--accent); position: relative;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .card:hover .card-cta { gap: 9px; }
+  .card-cta span { transition: transform 140ms ease; }
+  .state {
+    color: var(--text-secondary); font-size: 14px; padding: 36px 0; max-width: 50ch;
+  }
+  .state.error { color: var(--status-critical); }
+</style>
+</head>
+<body>
+  <div class="page">
+    <span class="brand">AI Code Review</span>
+    <h1>AI Metrics</h1>
+    <p class="sub">Usage, quality, and reliability metrics for every AI-powered solution we run — one shared platform, one dashboard per solution.</p>
+    <div class="section-label">Dashboards</div>
+    <div id="grid" class="grid"></div>
+
+  </div>
+
+<script>
+// This only ever lists features the API's knownFeatures allowlist returns
+// (see main.go) -- onboarding a new AI solution means adding it there too.
+// The prettified fallback below covers a gap between that allowlist and this
+// map (e.g. just-added feature, no friendly copy yet), not arbitrary/stray
+// featureName values -- those never reach this page at all now.
+const FEATURE_META = {
+  'ai-code-review': {
+    name: 'AI Code Review',
+    desc: 'Automated PR review in Azure DevOps pipelines — volume, severity, cost, and reliability.'
+  }
+};
+
+function prettify(name) {
+  return name.replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function renderState(message, isError) {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  const div = document.createElement('div');
+  div.className = 'state' + (isError ? ' error' : '');
+  div.textContent = message;
+  grid.appendChild(div);
+}
+
+async function load() {
+  renderState('Loading dashboards…', false);
+  try {
+    const resp = await fetch('/metrics/features');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    const features = data.features || [];
+
+    if (features.length === 0) {
+      renderState('No metrics have landed yet. Once an AI solution starts sending events, its dashboard will show up here.', false);
+      return;
+    }
+
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    for (const f of features) {
+      const meta = FEATURE_META[f] || { name: prettify(f), desc: 'AI solution metrics.' };
+
+      const card = document.createElement('a');
+      card.className = 'card';
+      card.href = `/dashboard?feature=${encodeURIComponent(f)}`;
+
+      const name = document.createElement('div');
+      name.className = 'card-name';
+      name.textContent = meta.name; // untrusted-ish data -> textContent, never innerHTML
+
+      const desc = document.createElement('div');
+      desc.className = 'card-desc';
+      desc.textContent = meta.desc;
+
+      const cta = document.createElement('div');
+      cta.className = 'card-cta';
+      cta.append('View dashboard ', Object.assign(document.createElement('span'), { textContent: '→' }));
+
+      card.append(name, desc, cta);
+      grid.appendChild(card);
+    }
+  } catch (e) {
+    renderState('Failed to load dashboards: ' + e.message, true);
+  }
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/aimetrics
+/ai-metrics-api
+
+# Go
+*.test
+*.out
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
