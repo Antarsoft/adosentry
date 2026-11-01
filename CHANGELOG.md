@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- README: badges, a feature summary, a diagram of how a run works, a documentation index, and a copy-paste prompt that lets an AI coding agent set up the review stage and, optionally, the metrics dashboard step by step.
+
 ### Changed
 
 - The metrics API builds with Go 1.27 (`go.mod` and the Docker builder image `golang:1.27-alpine`). Replaces Dependabot PR #5, which bumped only the Dockerfile.

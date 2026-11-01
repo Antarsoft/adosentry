@@ -4,19 +4,48 @@
 
 <h1 align="center">PullPicket</h1>
 
-AI pull request review for Azure DevOps. PullPicket is a pipeline stage template that sends the changes in a pull request to a model you host in Azure OpenAI or Azure AI Foundry, then posts the findings back to the pull request as inline comments. An optional metrics service records each run so you can see cost, volume and outcomes on a dashboard.
+<p align="center">
+  <b>AI pull request review for Azure DevOps, on models you host in Azure.</b>
+</p>
 
-> **Status: pre-1.0.** The defaults described here are the planned 1.0.0 behaviour. Until 1.0.0 is tagged, set `foundryAuth` and `promptMode` explicitly as the quick start does, and see [CHANGELOG.md](CHANGELOG.md) for what has landed.
+<p align="center">
+  <a href="https://github.com/Antarsoft/pullpicket/actions/workflows/ci.yml"><img src="https://github.com/Antarsoft/pullpicket/actions/workflows/ci.yml/badge.svg?branch=development" alt="CI"></a>
+  <a href="https://github.com/Antarsoft/pullpicket/releases/latest"><img src="https://img.shields.io/github/v/release/Antarsoft/pullpicket?sort=semver" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-Apache--2.0-blue" alt="Licence: Apache-2.0"></a>
+  <img src="https://img.shields.io/badge/Azure%20DevOps-pipeline%20stage-0078D4?logo=azuredevops&logoColor=white" alt="Azure DevOps pipeline stage">
+  <img src="https://img.shields.io/badge/PowerShell-7-5391FE?logo=powershell&logoColor=white" alt="PowerShell 7">
+  <img src="https://img.shields.io/badge/metrics-Go-00ADD8?logo=go&logoColor=white" alt="Metrics API in Go">
+</p>
+
+<p align="center">
+  <a href="#quick-start-about-15-minutes">Quick start</a> ·
+  <a href="#set-up-with-an-ai-agent">Set up with an AI agent</a> ·
+  <a href="docs/parameters.md">Parameters</a> ·
+  <a href="docs/metrics.md">Metrics</a> ·
+  <a href="docs/troubleshooting.md">Troubleshooting</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+PullPicket is a pipeline stage template that sends the changes in a pull request to a model you host in Azure OpenAI or Azure AI Foundry, then posts the findings back to the pull request as inline comments. An optional metrics service records each run so you can see cost, volume and outcomes on a dashboard.
+
+| | |
+| --- | --- |
+| **Fits your pipeline** | One `template:` line in the PR pipeline you already have. No extension to install, no server to run. |
+| **No API keys** | Signs in to the model and to Azure DevOps with the service connection's Entra identity. |
+| **Your rules** | A short rules file in each repository says what matters there; a shared base prompt handles the rest. |
+| **Your data stays in Azure** | The diff goes only to your own model deployment. |
 
 ## Contents
 
 - [What it does](#what-it-does)
 - [How it works](#how-it-works)
 - [Quick start (about 15 minutes)](#quick-start-about-15-minutes)
+- [Set up with an AI agent](#set-up-with-an-ai-agent)
 - [Rules files](#rules-files)
 - [Configuration](#configuration)
 - [Cost notes](#cost-notes)
 - [Metrics dashboard (optional)](#metrics-dashboard-optional)
+- [Documentation](#documentation)
 - [Repository layout](#repository-layout)
 - [Development and CI](#development-and-ci)
 - [Security](#security)
@@ -42,17 +71,24 @@ PullPicket only reviews pull requests in Azure Repos, using models hosted in Azu
 
 ## How it works
 
+```mermaid
+flowchart LR
+    PR["Pull request<br/>opened or updated"] --> Policy["Build validation<br/>policy"]
+    Policy --> Stage["PullPicket stage<br/>in your PR pipeline"]
+    Stage -- "line-numbered diff<br/>+ base prompt + rules file" --> Model["Your model<br/>Azure OpenAI / AI Foundry"]
+    Model -- "findings as JSON" --> Stage
+    Stage -- "inline comments" --> PR
+    Stage -. "one event per run<br/>(optional)" .-> Metrics["Metrics API<br/>+ dashboard"]
 ```
-PR opened or updated
-  └─ build validation policy queues your PR pipeline
-       └─ PullPicket stage (ai-code-review/stage-template.yml)
-            1. checks out your repo (full history) and this repo as `templates`
-            2. reads the bot's existing comment threads on the PR
-            3. builds a line-numbered diff of target...source, minus excluded files
-            4. sends it in batches to your model with the base prompt + your rules file
-            5. validates each finding against the diff and posts it as a PR thread
-            6. prints a run summary and, if configured, sends a metrics event
-```
+
+For each run, the stage:
+
+1. checks out your repository (full history) and this repository as `templates`,
+2. reads the bot's existing comment threads on the pull request,
+3. builds a line-numbered diff of target...source, minus excluded files,
+4. sends it in batches to your model with the base prompt and your rules file,
+5. validates each finding against the diff and posts it as a pull request thread,
+6. prints a run summary and, if configured, sends a metrics event.
 
 The engine is a PowerShell 7 module (`ai-code-review/AICodeReview.psd1`) that runs inside an `AzurePowerShell@5` task. The model is called through the chat completions API with a strict JSON schema, so every finding comes back as `fileName`, `lineNumber`, `severity` and `comment`. Findings that point at a line outside the diff are moved to the nearest changed line or dropped.
 
@@ -128,7 +164,125 @@ The first time the pipeline runs, approve its access to the service connection, 
 
 Add the pipeline as a **build validation** policy on your target branch (Repos > Branches > Branch policies). Azure Repos ignores the YAML `pr:` trigger; the branch policy is what queues PR runs. Open a pull request and the review comments appear when the stage finishes.
 
-> **Breaking changes in 1.0.0.** `foundryAuth` now defaults to `entra`, `promptMode` defaults to `rules`, and the `AutoApprove` option is removed. If you used a pre-1.0 copy with key auth or a full legacy prompt, set `foundryAuth: key` or `promptMode: legacy` explicitly. See [CHANGELOG.md](CHANGELOG.md).
+> **Upgrading from a pre-1.0 copy?** `foundryAuth` now defaults to `entra`, `promptMode` defaults to `rules`, and the `AutoApprove` option is removed. If you used key auth or a full legacy prompt, set `foundryAuth: key` or `promptMode: legacy` explicitly. See [CHANGELOG.md](CHANGELOG.md).
+
+## Set up with an AI agent
+
+If you use an AI coding agent that can run shell commands, such as Claude Code, you can hand it the setup. Open the agent in a clone of the repository that should get reviews, paste the prompt below, and answer its questions. The agent works through the steps in order, runs the `az` and `git` commands itself, checks each step before it moves on, and stops to ask you whenever a step needs a person in the Azure DevOps or Azure portal.
+
+You still need the same access as the [quick start](#quick-start-about-15-minutes), and the agent acts with whatever `az` sign-in you give it. Read each command before you approve it.
+
+<details>
+<summary><b>Copy the setup prompt</b></summary>
+
+````markdown
+You are setting up PullPicket (https://github.com/Antarsoft/pullpicket), an AI pull request
+reviewer for Azure DevOps, for my repository. Work through the steps below in order. Treat the
+PullPicket README, infra/README.md, docs/metrics.md and docs/troubleshooting.md at tag v1.0.0 as
+the source of truth; read them before you start and follow them where they differ from this prompt.
+
+Ground rules:
+- Ask me for every value in "Inputs" before you run anything. Do not guess names or IDs.
+- Run commands one at a time. Show me each command before you run it. Never put a `# comment`
+  on the same line as a command (zsh echoes it when pasted).
+- Use the Azure CLI (2.60 or later) and the azure-devops extension (`az extension add --name azure-devops`).
+  Where the CLI cannot do a step, give me the exact portal path and wait until I say it is done.
+- After each step, check the result (a command, or ask me) before you continue. If a check
+  fails, look in docs/troubleshooting.md first, then stop and tell me.
+- Never print secrets. Do not commit `.env.entra` or any key. Delete `.env.entra` at the end.
+- Keep a checklist of the steps and show it to me as you go.
+
+Inputs (ask me for all of these first):
+1. Azure DevOps organisation URL and project name.
+2. The repository to review, its default branch, and its stack (for the rules file).
+3. Azure subscription ID, a resource group name and a region.
+4. Whether I already have an Azure OpenAI or Azure AI Foundry model deployment. If yes: its
+   chat completions URL and deployment name, and whether it is a classic Azure OpenAI resource
+   (https://<name>.openai.azure.com/). If no: which model to deploy.
+5. The service connection name to create, or an existing Azure Resource Manager one to reuse.
+6. Whether I want the optional metrics dashboard (Part 2).
+
+Part 1: the review stage
+
+1. Prerequisites. `az login`, `az account set --subscription <id>`, and
+   `az devops configure --defaults organization=<org url> project=<project>`. Register the
+   providers the model needs on a new subscription:
+   `az provider register --namespace Microsoft.CognitiveServices`.
+2. Import PullPicket into the Azure DevOps project as a NEW repository named `pullpicket`
+   (`az repos create`, then `az repos import create --git-source-url https://github.com/Antarsoft/pullpicket.git`).
+   A new project already has a repository named after the project; do not import into it, or the
+   pipeline's `name:` must become `<project>/<project>`. Pin the pipeline to `refs/tags/v1.0.0`.
+3. Model. If I have none, create an Azure OpenAI or AI Foundry resource in the resource group and
+   deploy a chat model that supports structured output (`response_format` with a JSON schema).
+   Note the full chat completions URL (it ends in `/chat/completions?api-version=...`) and the
+   deployment name.
+4. Service connection. Create an Azure Resource Manager service connection with workload identity
+   federation, or reuse mine. Find its application (client) ID. Then:
+   - Grant its identity **Cognitive Services OpenAI User** on the model resource (`az role assignment create`).
+   - The review needs no Azure management role. If Azure DevOps created the connection and gave it
+     **Contributor** on the subscription or resource group, tell me and offer to remove it.
+5. Azure DevOps access for the identity. This is the most common miss, and the stage can still go
+   green without posting anything if it is wrong.
+   - The organisation must be connected to the identity's Entra tenant (Organization settings >
+     Microsoft Entra). Otherwise adding the service principal fails with "Given email address ... is invalid".
+   - Add the identity to the organisation with Basic access (Organization settings > Users), and give it
+     **Contribute to pull requests** on the repository (Project settings > Repositories > <repo> > Security).
+   Ask me to do these in the portal and wait for me to confirm.
+6. Variable group `ai-code-review` (`az pipelines variable-group create`) with `modelName` (the deployment
+   name), `modelDeploymentUrl` (the full chat completions URL) and optionally `reasoningEffort`.
+7. Rules file. Copy the closest file from PullPicket's `examples/rules/` to
+   `pipelines/ai-code-review/<repo>.rules.md` in my repository and adapt it to my stack: one sentence on
+   the stack, numbered rules with severities, and a "conventions to respect" section for what tooling
+   already enforces. Keep it short. Show it to me before you commit.
+8. Pipeline. Add the stage to my PR pipeline, based on PullPicket's `examples/pipelines/pr-pipeline.yml`.
+   The repository resource alias must be exactly `templates`. Set `azureSubscription`, `promptFile`,
+   `promptMode: rules` and `foundryAuth: entra`. For a classic Azure OpenAI resource also set
+   `foundryTokenResource: 'https://cognitiveservices.azure.com'`. Commit on a new branch and open a
+   pull request in my repository; do not push to the default branch.
+9. Create the pipeline (`az pipelines create`) and add it as a **build validation** policy on the default
+   branch (`az repos policy build create`). Azure Repos ignores the YAML `pr:` trigger.
+10. First run. On the first run, Azure DevOps asks for permission to use the service connection, the
+    variable group and the `templates` repository. Ask me to approve them.
+
+Part 2: the metrics dashboard (only if I said yes)
+
+Follow infra/README.md "Deploy", steps 1 to 7, from a clone of PullPicket at v1.0.0.
+11. Register the providers: Microsoft.App, Microsoft.OperationalInsights, Microsoft.DocumentDB,
+    Microsoft.ContainerRegistry and Microsoft.ManagedIdentity. Check I have Owner (or Contributor plus
+    Role Based Access Control Administrator) on the resource group, and rights to create app registrations.
+12. First deployment with no image tag: `az deployment group create --resource-group <rg> --parameters infra/main.bicepparam --query properties.outputs --output json`.
+    Note `registryName` and `metricsUrl`.
+13. `infra/setup-entra.sh --app-url <metricsUrl>`. It writes `.env.entra`. If the tenant only allows
+    application ID URIs on a verified domain, the script falls back to `api://<API client id>` instead of
+    `api://pullpicket-metrics`; use whatever `PULLPICKET_API_APP_ID_URI` in `.env.entra` says from here on.
+14. Build the image: `export PULLPICKET_IMAGE_TAG="$(git rev-parse --short HEAD)"`, then
+    `az acr build --registry <registryName> --image "pullpicket-metrics:$PULLPICKET_IMAGE_TAG" metrics`.
+15. `source .env.entra`, then run the same deployment again to create the Container App.
+16. `infra/grant-events-write.sh --principal <service connection client id>`.
+17. Variable group `ai-code-review-metrics` with `aiMetricsApiUrl` = `metricsUrl` and
+    `aiMetricsApiResource` = `PULLPICKET_API_APP_ID_URI`. Add `metricsVariableGroup: 'ai-code-review-metrics'`
+    to the stage parameters in my pull request. Leave `metricsAuth` at its default, `entra`.
+18. Check: `POST <metricsUrl>/events` with no credential returns 401, `GET <metricsUrl>/healthz` returns 200,
+    and `GET <metricsUrl>/metrics/summary?feature=ai-code-review` does not return 200 without sign-in.
+19. Delete `.env.entra`.
+
+Verify (both parts)
+- Ask me to push a small change to the open pull request that a reviewer would flag.
+- The PullPicket stage ran. Do not trust a green stage alone: check the log has no
+  `WARNING: Failed to post comment` and no `Failed to acquire access token`, and ask me to confirm the
+  comments are on the right files and lines.
+- A second push does not repeat comments that are already open.
+- If Part 2 is set up: the stage log shows the metrics event was sent without 401 or 403, and the run is on
+  `<metricsUrl>/dashboard?feature=ai-code-review` after I sign in. The engine version shows `v1.0.0`.
+
+When you finish, give me a short summary: what you created (with names), what I did by hand, any role you
+suggested removing, and how to tear it all down (`az group delete`, and `az ad app delete` for the two
+pullpicket-metrics app registrations).
+````
+
+</details>
+
+The prompt follows the same steps as the quick start and [infra/README.md](infra/README.md), plus the snags found while testing 1.0.0 on a fresh subscription and project. If the agent gets stuck, [Troubleshooting](docs/troubleshooting.md) has the fixes it should try first.
 
 ## Rules files
 
@@ -152,8 +306,8 @@ The stage takes its settings as template parameters. The ones you are most likel
 | --- | --- | --- |
 | `azureSubscription` | (required) | Service connection the review runs as. |
 | `promptFile` | (required) | Path to your rules file, relative to the repository root. |
-| `promptMode` | `rules` (planned) | `rules` adds the shared base prompt; `legacy` uses your file as the whole prompt. |
-| `foundryAuth` | `entra` (planned) | `entra` signs in with the service connection; `key` reads `foundry-key` from the variable group. |
+| `promptMode` | `rules` | `rules` adds the shared base prompt; `legacy` uses your file as the whole prompt. |
+| `foundryAuth` | `entra` | `entra` signs in with the service connection; `key` reads `foundry-key` from the variable group. |
 | `modelVariableGroup` | `ai-code-review` | Variable group with the model settings. |
 | `metricsVariableGroup` | empty | Variable group for the metrics API. Empty sends no metrics. |
 | `metricsAuth` | `entra` | `entra` sends a token for `aiMetricsApiResource` from the service connection; `key` sends `aiMetricsApiKey` as `X-Api-Key`. |
@@ -182,6 +336,18 @@ Ways to keep costs down: leave `reviewDefaultExcludes` on, use `reviewPathSpec` 
 To connect a pipeline, create a variable group with `aiMetricsApiUrl` and `aiMetricsApiResource` (the API's application ID URI) and pass its name as `metricsVariableGroup`. `POST /events` always needs a credential: an Entra token carrying the API's `Events.Write` role (`metricsAuth: entra`, the default) or a shared key (`metricsAuth: key`). Without the variable group, the stage skips the metrics event.
 
 [docs/metrics.md](docs/metrics.md) covers deploying, both auth modes, reading the dashboard, the pricing file for cost estimates, every environment variable, and running the service locally.
+
+## Documentation
+
+| Guide | What is in it |
+| --- | --- |
+| [Parameter reference](docs/parameters.md) | Every stage parameter with its type, default and allowed values. |
+| [Troubleshooting](docs/troubleshooting.md) | Skipped stages, missing comments, 401/403/404 from the model, agent pool overrides. |
+| [Metrics guide](docs/metrics.md) | Deploying the metrics API, both auth modes, the dashboard, pricing and local runs. |
+| [Metrics infrastructure](infra/README.md) | Bicep deployment, Entra app registrations and teardown. |
+| [Security](SECURITY.md) | What the model and the metrics service receive, hardening, and private reporting. |
+| [Contributing](CONTRIBUTING.md) | Local setup, checks, commit style and DCO sign-off. |
+| [Changelog](CHANGELOG.md) | What changed in each release, including the 1.0.0 breaking defaults. |
 
 ## Repository layout
 
