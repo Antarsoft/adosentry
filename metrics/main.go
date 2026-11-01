@@ -7,8 +7,8 @@
 //
 // Endpoints:
 //
-//	POST /events           ingest one event
-//	GET  /metrics/summary  one feature's aggregated numbers; ?feature= (required), ?days= (default 30)
+//	POST /events           ingest one event (body up to 64 KB)
+//	GET  /metrics/summary  one feature's aggregated numbers; ?feature= (required), ?days= (default 30), ?tenantId= (default "default")
 //	GET  /metrics/features the dashboards this deployment exposes
 //	GET  /healthz          liveness probe
 //	GET  /                 landing page
@@ -21,6 +21,7 @@
 //	COSMOS_DATABASE   e.g. AIMetrics
 //	COSMOS_CONTAINER  e.g. Events
 //	PRICING_FILE      optional path to a pricing.json replacing the built-in model rates
+//	ALLOWED_ORIGINS   optional comma-separated browser origins allowed to call the API cross-site
 //	PORT              default 8080
 //
 // The code lives in internal/: config, storage (Cosmos), summary
@@ -29,16 +30,24 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/antarsoft/adosentry/metrics/internal/config"
 	"github.com/antarsoft/adosentry/metrics/internal/handlers"
 	"github.com/antarsoft/adosentry/metrics/internal/pricing"
 	"github.com/antarsoft/adosentry/metrics/internal/storage"
 )
+
+// shutdownGrace is how long in-flight requests get after SIGTERM.
+const shutdownGrace = 20 * time.Second
 
 func main() {
 	cfg, err := config.Load(os.Getenv)
@@ -49,8 +58,38 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("ai-metrics-api listening on :%s", cfg.Port)
-	log.Fatal(http.ListenAndServe(":"+cfg.Port, handler))
+	srv := newServer(":"+cfg.Port, handler)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("shutdown: %v", err)
+		}
+	}()
+
+	log.Printf("ai-metrics-api listening on %s", srv.Addr)
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal(err)
+	}
+}
+
+// newServer sets every timeout, so a slow or stalled client cannot hold a
+// connection open indefinitely. WriteTimeout leaves room for the summary's
+// 15-second Cosmos query.
+func newServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    64 << 10,
+	}
 }
 
 // newHandler builds the full service from its configuration; main and the
@@ -71,5 +110,8 @@ func newHandler(cfg config.Config) (http.Handler, error) {
 		Prices:   prices,
 		Features: handlers.KnownFeatures,
 	}
-	return handlers.WithCORS(api.Routes()), nil
+	if len(cfg.AllowedOrigins) > 0 {
+		log.Printf("cors: allowing %s", strings.Join(cfg.AllowedOrigins, ", "))
+	}
+	return handlers.CORS(cfg.AllowedOrigins, api.Routes()), nil
 }

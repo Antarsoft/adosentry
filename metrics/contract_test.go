@@ -39,10 +39,20 @@ const feature = "ai-code-review"
 // newTestAPI starts the API wired to a fresh Cosmos fake.
 func newTestAPI(t *testing.T) (*httptest.Server, *cosmostest.Server) {
 	t.Helper()
+	return newTestAPIWith(t, nil)
+}
+
+// newTestAPIWith lets a test adjust the configuration first.
+func newTestAPIWith(t *testing.T, adjust func(*config.Config)) (*httptest.Server, *cosmostest.Server) {
+	t.Helper()
 	fake := cosmostest.New(t)
-	handler, err := newHandler(config.Config{
+	cfg := config.Config{
 		Cosmos: storage.CosmosConfig{Endpoint: fake.URL, Key: "ZHVtbXk=", Database: "db", Container: "events"},
-	})
+	}
+	if adjust != nil {
+		adjust(&cfg)
+	}
+	handler, err := newHandler(cfg)
 	if err != nil {
 		t.Fatalf("newHandler: %v", err)
 	}
@@ -94,24 +104,77 @@ func TestHealthz(t *testing.T) {
 	expect(t, do(t, http.MethodGet, api.URL+"/healthz", ""), http.StatusOK, "ok")
 }
 
-func TestCORSHeaders(t *testing.T) {
+// TestCORS: with no ALLOWED_ORIGINS no CORS header is ever sent, so browsers
+// keep other sites out; listed origins get their own origin echoed back.
+func TestCORS(t *testing.T) {
+	cors := []string{"Access-Control-Allow-Origin", "Access-Control-Allow-Headers", "Access-Control-Allow-Methods"}
+	preflight := func(url, origin string) response {
+		t.Helper()
+		req, _ := http.NewRequest(http.MethodOptions, url, nil)
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return response{status: resp.StatusCode, header: resp.Header, body: string(b)}
+	}
+
 	api, _ := newTestAPI(t)
 	for _, path := range []string{"/healthz", "/events", "/metrics/features"} {
-		got := do(t, http.MethodOptions, api.URL+path, "")
-		expect(t, got, http.StatusNoContent, "")
-		want := map[string]string{
-			"Access-Control-Allow-Origin":  "*",
-			"Access-Control-Allow-Headers": "Content-Type, X-Api-Key",
-			"Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-		}
-		for k, v := range want {
-			if got.header.Get(k) != v {
-				t.Errorf("OPTIONS %s: %s = %q, want %q", path, k, got.header.Get(k), v)
+		got := preflight(api.URL+path, "https://evil.example.com")
+		for _, h := range cors {
+			if v := got.header.Get(h); v != "" {
+				t.Errorf("default config, OPTIONS %s: %s = %q, want none", path, h, v)
 			}
 		}
 	}
-	if got := do(t, http.MethodGet, api.URL+"/healthz", ""); got.header.Get("Access-Control-Allow-Origin") != "*" {
-		t.Errorf("GET /healthz: Access-Control-Allow-Origin = %q, want *", got.header.Get("Access-Control-Allow-Origin"))
+	expect(t, preflight(api.URL+"/events", "https://evil.example.com"), http.StatusMethodNotAllowed, "")
+
+	api, _ = newTestAPIWith(t, func(c *config.Config) { c.AllowedOrigins = []string{"https://dash.example.com"} })
+	got := preflight(api.URL+"/events", "https://dash.example.com")
+	expect(t, got, http.StatusNoContent, "")
+	if got.header.Get("Access-Control-Allow-Origin") != "https://dash.example.com" || !strings.Contains(got.header.Get("Access-Control-Allow-Headers"), "Content-Type") {
+		t.Errorf("allowed preflight headers = %v", got.header)
+	}
+	if got := preflight(api.URL+"/events", "https://evil.example.com"); got.header.Get("Access-Control-Allow-Origin") != "" || got.status != http.StatusMethodNotAllowed {
+		t.Errorf("unlisted origin got %d with Allow-Origin %q", got.status, got.header.Get("Access-Control-Allow-Origin"))
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, api.URL+"/metrics/features", nil)
+	req.Header.Set("Origin", "https://dash.example.com")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Access-Control-Allow-Origin") != "https://dash.example.com" || resp.Header.Get("Vary") != "Origin" {
+		t.Errorf("simple request: %d, headers %v", resp.StatusCode, resp.Header)
+	}
+}
+
+func TestEventBodyLimit(t *testing.T) {
+	api, fake := newTestAPI(t)
+	pad := strings.Repeat("x", 64<<10)
+	got := do(t, http.MethodPost, api.URL+"/events", `{"featureName":"f","custom":{"pad":"`+pad+`"}}`)
+	expect(t, got, http.StatusRequestEntityTooLarge, `{"error":"request body larger than 65536 bytes"}`+"\n")
+	if docs := fake.Docs("default/f"); len(docs) != 0 {
+		t.Errorf("oversized event was stored")
+	}
+	// Just under the cap is fine.
+	small := strings.Repeat("x", 60<<10)
+	expect(t, do(t, http.MethodPost, api.URL+"/events", `{"featureName":"f","custom":{"pad":"`+small+`"}}`), http.StatusCreated, "")
+}
+
+func TestServerTimeouts(t *testing.T) {
+	srv := newServer(":0", http.NotFoundHandler())
+	if srv.ReadHeaderTimeout == 0 || srv.ReadTimeout == 0 || srv.WriteTimeout == 0 || srv.IdleTimeout == 0 {
+		t.Errorf("a timeout is unset: %+v", srv)
+	}
+	if srv.WriteTimeout <= 15*time.Second {
+		t.Errorf("WriteTimeout %v leaves no room for the 15s summary query", srv.WriteTimeout)
 	}
 }
 

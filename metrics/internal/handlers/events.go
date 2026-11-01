@@ -14,8 +14,13 @@ import (
 	"github.com/antarsoft/adosentry/metrics/internal/storage"
 )
 
-// storeTimeout bounds one Cosmos write.
-const storeTimeout = 10 * time.Second
+const (
+	// storeTimeout bounds one Cosmos write.
+	storeTimeout = 10 * time.Second
+	// MaxEventBytes caps a POST /events body. A review event is a few KB;
+	// anything near the cap is a misbehaving sender.
+	MaxEventBytes = 64 << 10
+)
 
 // Event is the envelope every sender uses. Only FeatureName is required.
 // Everything feature-specific (repository, prId, commentsCount, tokens, and
@@ -44,7 +49,13 @@ func (a *API) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var e Event
+	r.Body = http.MaxBytesReader(w, r.Body, MaxEventBytes)
 	if err := json.NewDecoder(r.Body).Decode(&e); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			http.Error(w, fmt.Sprintf(`{"error":"request body larger than %d bytes"}`, MaxEventBytes), http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, fmt.Sprintf(`{"error":"invalid JSON: %s"}`, err), http.StatusBadRequest)
 		return
 	}
