@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/antarsoft/adosentry/metrics/internal/pricing"
-	"github.com/antarsoft/adosentry/metrics/internal/storage"
+	"github.com/antarsoft/pullpicket/metrics/internal/pricing"
+	"github.com/antarsoft/pullpicket/metrics/internal/storage"
 )
 
 var now = time.Date(2026, 3, 10, 15, 0, 0, 0, time.UTC)

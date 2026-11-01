@@ -1,4 +1,4 @@
-// AdoSentry metrics infrastructure, deployed to one resource group:
+// PullPicket metrics infrastructure, deployed to one resource group:
 //   az deployment group create -g <resource-group> -f infra/main.bicep -p infra/main.bicepparam
 // Today this creates the Cosmos DB store; the registry, Container App and
 // identity wiring (I2, I3, I5 in the plan) are added as further modules.
@@ -8,7 +8,7 @@ targetScope = 'resourceGroup'
 @description('Azure region for every resource. Defaults to the resource group region.')
 param location string = resourceGroup().location
 
-@description('Short prefix used to build resource names, e.g. adosentry.')
+@description('Short prefix used to build resource names, e.g. pullpicket.')
 @minLength(3)
 @maxLength(20)
 param namePrefix string
@@ -26,7 +26,7 @@ param cosmosContainerName string = 'Events'
 
 @description('Tags applied to every resource.')
 param tags object = {
-  application: 'adosentry'
+  application: 'pullpicket'
 }
 
 module cosmos 'modules/cosmos.bicep' = {

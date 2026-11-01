@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/antarsoft/adosentry/metrics/internal/storage"
-	"github.com/antarsoft/adosentry/metrics/internal/summary"
+	"github.com/antarsoft/pullpicket/metrics/internal/storage"
+	"github.com/antarsoft/pullpicket/metrics/internal/summary"
 )
 
 const (

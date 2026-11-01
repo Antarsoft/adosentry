@@ -11,8 +11,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/antarsoft/adosentry/metrics/internal/pricing"
-	"github.com/antarsoft/adosentry/metrics/internal/storage"
+	"github.com/antarsoft/pullpicket/metrics/internal/pricing"
+	"github.com/antarsoft/pullpicket/metrics/internal/storage"
 )
 
 // topFilesLimit caps the "files most often commented on" ranking.

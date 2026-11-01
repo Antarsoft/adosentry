@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="docs/assets/logo.svg" alt="AdoSentry logo" width="120">
+  <img src="docs/assets/logo.svg" alt="PullPicket logo" width="120">
 </p>
 
-<h1 align="center">AdoSentry</h1>
+<h1 align="center">PullPicket</h1>
 
-AI pull request review for Azure DevOps. AdoSentry is a pipeline stage template that sends the changes in a pull request to a model you host in Azure OpenAI or Azure AI Foundry, then posts the findings back to the pull request as inline comments. An optional metrics service records each run so you can see cost, volume and outcomes on a dashboard.
+AI pull request review for Azure DevOps. PullPicket is a pipeline stage template that sends the changes in a pull request to a model you host in Azure OpenAI or Azure AI Foundry, then posts the findings back to the pull request as inline comments. An optional metrics service records each run so you can see cost, volume and outcomes on a dashboard.
 
 > **Status: pre-1.0.** The defaults described here are the planned 1.0.0 behaviour. Until 1.0.0 is tagged, set `foundryAuth` and `promptMode` explicitly as the quick start does, and see [CHANGELOG.md](CHANGELOG.md) for what has landed.
 
@@ -32,14 +32,14 @@ AI pull request review for Azure DevOps. AdoSentry is a pipeline stage template 
 - Signs in to the model and to Azure DevOps with the identity of an Azure Resource Manager service connection (Entra ID). No API keys are needed by default.
 - Optionally sends one event per run (tokens, comments, outcome, latency) to a small metrics API with a dashboard.
 
-AdoSentry only reviews pull requests in Azure Repos, using models hosted in Azure. GitHub and GitLab as review hosts and non-Azure model providers are out of scope for 1.0.
+PullPicket only reviews pull requests in Azure Repos, using models hosted in Azure. GitHub and GitLab as review hosts and non-Azure model providers are out of scope for 1.0.
 
 ## How it works
 
 ```
 PR opened or updated
   └─ build validation policy queues your PR pipeline
-       └─ AdoSentry stage (ai-code-review/stage-template.yml)
+       └─ PullPicket stage (ai-code-review/stage-template.yml)
             1. checks out your repo (full history) and this repo as `templates`
             2. reads the bot's existing comment threads on the PR
             3. builds a line-numbered diff of target...source, minus excluded files
@@ -58,11 +58,11 @@ You need an Azure DevOps project with an Azure Repos repository, an Azure subscr
 
 ### 1. Import this repository
 
-Import AdoSentry into your Azure DevOps organisation (Repos > Import repository) or keep it on GitHub and reach it through a GitHub service connection. Pin a release tag, such as `v1.0.0`, so template changes only reach your pipelines when you choose.
+Import PullPicket into your Azure DevOps organisation (Repos > Import repository) or keep it on GitHub and reach it through a GitHub service connection. Pin a release tag, such as `v1.0.0`, so template changes only reach your pipelines when you choose.
 
 ### 2. Deploy a model
 
-Create an Azure OpenAI or Azure AI Foundry resource and deploy a chat model. Any chat model that supports structured output (`response_format` with a JSON schema) works; AdoSentry does not prescribe one. Note the deployment's chat completions URL (it ends in `/chat/completions?api-version=...`).
+Create an Azure OpenAI or Azure AI Foundry resource and deploy a chat model. Any chat model that supports structured output (`response_format` with a JSON schema) works; PullPicket does not prescribe one. Note the deployment's chat completions URL (it ends in `/chat/completions?api-version=...`).
 
 ### 3. Create a service connection and grant it access
 
@@ -94,7 +94,7 @@ resources:
   repositories:
     - repository: templates                # the alias must be exactly "templates"
       type: git
-      name: <project>/adosentry
+      name: <project>/pullpicket
       ref: refs/tags/v1.0.0
 
 stages:
@@ -108,7 +108,7 @@ stages:
 
 A fuller example with a build stage is in [`examples/pipelines/pr-pipeline.yml`](examples/pipelines/pr-pipeline.yml).
 
-> **The repository alias must be `templates`.** The stage checks out the AdoSentry repository by that name and loads the engine from `$(Pipeline.Workspace)/templates/`. Any other alias fails the checkout.
+> **The repository alias must be `templates`.** The stage checks out the PullPicket repository by that name and loads the engine from `$(Pipeline.Workspace)/templates/`. Any other alias fails the checkout.
 
 The first time the pipeline runs, approve its access to the service connection, the variable group and the `templates` repository when Azure DevOps asks.
 
@@ -155,7 +155,7 @@ The full parameter reference will be generated from `stage-template.yml` (planne
 
 ## Cost notes
 
-You pay your Azure model provider per token; AdoSentry adds no charge. What drives the bill:
+You pay your Azure model provider per token; PullPicket adds no charge. What drives the bill:
 
 - **Diff size.** Each run sends the line-numbered diff of the pull request plus the base prompt and rules file. Bigger pull requests cost more.
 - **Batches.** A large pull request is split into batches (`reviewMaxFilesPerBatch`, `reviewMaxBatchTokens`), and each batch repeats the prompt. Very large single files are truncated at `reviewMaxFileTokens`.
@@ -248,4 +248,4 @@ A full security policy, including how to report a vulnerability, will be publish
 
 ## Licence
 
-AdoSentry is licensed under the [Apache License 2.0](LICENSE).
+PullPicket is licensed under the [Apache License 2.0](LICENSE).
