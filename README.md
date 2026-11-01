@@ -34,6 +34,12 @@ AI pull request review for Azure DevOps. PullPicket is a pipeline stage template
 
 PullPicket only reviews pull requests in Azure Repos, using models hosted in Azure. GitHub and GitLab as review hosts and non-Azure model providers are out of scope for 1.0.
 
+<p align="center">
+  <img src="docs/assets/pr-review.png" alt="Two PullPicket comments on a pull request diff: a WARNING about an unawaited save call with a suggested fix, and a SUGGESTION about floating-point money totals" width="760">
+</p>
+
+<sub>Illustration with a placeholder repository and code. Comments appear as ordinary pull request threads on the changed lines.</sub>
+
 ## How it works
 
 ```
@@ -148,10 +154,9 @@ The stage takes its settings as template parameters. The ones you are most likel
 | `reviewPathSpec` / `reviewExcludePathSpec` | empty | Limit the review to, or exclude, paths. |
 | `reviewDefaultExcludes` | `true` | Skip lockfiles, minified files, images, fonts, archives and binaries. |
 
-<!-- TODO(X2): replace this table with the generated parameter reference from stage-template.yml, kept current by a CI check. -->
-The full parameter reference will be generated from `stage-template.yml` (planned). Until then, the comments in [`ai-code-review/stage-template.yml`](ai-code-review/stage-template.yml) are the reference.
+Every parameter, with its type, default and allowed values, is in the [parameter reference](docs/parameters.md). It is generated from the comments in [`ai-code-review/stage-template.yml`](ai-code-review/stage-template.yml), and CI fails if the two drift apart.
 
-<!-- TODO(X3): link docs/troubleshooting.md (non-PR runs, identity not in the ADO org, missing OpenAI role, agent pool overriding variables, foundryTokenResource for classic Azure OpenAI). -->
+If the stage is skipped, posts nothing, or the model call fails, see [Troubleshooting](docs/troubleshooting.md).
 
 ## Cost notes
 
@@ -166,38 +171,11 @@ Ways to keep costs down: leave `reviewDefaultExcludes` on, use `reviewPathSpec` 
 
 ## Metrics dashboard (optional)
 
-`metrics/` is a small Go service that stores one event per review run in Cosmos DB and serves a dashboard with runs, comments, severities, tokens and estimated cost over time. To use it, deploy the service, then create a variable group with `aiMetricsApiUrl` and the credential for `metricsAuth` (below), and pass its name as `metricsVariableGroup`. If the variable group is not set, the stage skips the metrics event.
+`metrics/` is a small Go service that stores one event per review run in Cosmos DB and serves a dashboard with runs, comments, severities, errors, tokens, latency and estimated cost over time. [`infra/`](infra/README.md) deploys it to Azure in one resource group: Cosmos DB with key auth disabled, Container Apps running as a managed identity, and Entra sign-in in front of the dashboard.
 
-Cost estimates come from a pricing table keyed by `modelName`. If your deployment name is not in the table, the dashboard still records the run but shows its cost as $0. The built-in table is [`metrics/internal/pricing/pricing.json`](metrics/internal/pricing/pricing.json); to use your own rates, mount a file with the same shape and set `PRICING_FILE` to its path.
+To connect a pipeline, create a variable group with `aiMetricsApiUrl` and `aiMetricsApiResource` (the API's application ID URI) and pass its name as `metricsVariableGroup`. `POST /events` always needs a credential: an Entra token carrying the API's `Events.Write` role (`metricsAuth: entra`, the default) or a shared key (`metricsAuth: key`). Without the variable group, the stage skips the metrics event.
 
-The service reads these environment variables:
-
-| Variable | Required | Meaning |
-|---|---|---|
-| `COSMOS_ENDPOINT` | yes | Cosmos DB account endpoint, such as `https://<account>.documents.azure.com:443/`. |
-| `COSMOS_DATABASE` | yes | Database name, such as `AIMetrics`. |
-| `COSMOS_CONTAINER` | yes | Container name, such as `Events`. |
-| `COSMOS_KEY` | no | Account key. Leave it unset to sign in with Microsoft Entra ID (managed identity in Azure, Azure CLI locally); the identity needs the Cosmos DB Built-in Data Contributor role. The account in `infra/` disables keys, so it needs Entra. Set `AZURE_CLIENT_ID` to use a user-assigned identity. |
-| `PRICING_FILE` | no | Path to a pricing file that replaces the built-in rates. |
-| `ALLOWED_ORIGINS` | no | Comma-separated browser origins allowed to call the API from another site. Empty means same-origin only. |
-| `PORT` | no | Listen port, default `8080`. |
-| `AUTH_MODE` | yes | How `POST /events` is authenticated: `entra`, `key`, `entra,key` (either), or `none` (local development only; logs a warning). There is no default. |
-| `ENTRA_TENANT_ID` | with `entra` | Tenant that issues the tokens. |
-| `ENTRA_AUDIENCE` | with `entra` | Comma-separated accepted audiences: the API app registration's application ID URI (`api://...`) and its client id. |
-| `ENTRA_ALLOWED_PRINCIPALS` | no | Object ids or client app ids allowed to write without the `Events.Write` app role. |
-| `METRICS_API_KEY` | with `key` | Shared key senders put in `X-Api-Key`, at least 32 characters (`openssl rand -base64 32`). In Azure, store it as a Container Apps secret or Key Vault reference. |
-
-Events may carry an optional `tenantId` (default `default`). Each tenant's events are stored and summarised separately; a single-team deployment can ignore it.
-
-**Authentication.** `POST /events` requires a credential; the other endpoints are reads, and in Azure the dashboard and `/metrics/*` sit behind Container Apps sign-in.
-
-- **Entra (preferred).** The sender gets an access token for the API's application ID URI and sends it as `Authorization: Bearer <token>`. The token must carry the API's `Events.Write` app role (or come from a principal in `ENTRA_ALLOWED_PRINCIPALS`); without it the API answers `403`. In the pipeline, set `metricsAuth: entra` (the default), put the application ID URI in `aiMetricsApiResource` in the metrics variable group, and assign `Events.Write` to the service connection's identity.
-- **API key (fallback).** The sender sends `X-Api-Key: <key>`. In the pipeline, set `metricsAuth: key` and store the key as the secret variable `aiMetricsApiKey`.
-
-Missing or invalid credentials get `401`. [`metrics/scripts/send-event-curl.sh`](metrics/scripts/send-event-curl.sh) sends a test event with either credential.
-
-<!-- TODO(X5): link docs/metrics.md (auth modes, using the dashboard, pricing file) once written. -->
-**Deployment.** [`infra/README.md`](infra/README.md) deploys the service to Azure in one resource group: Cosmos DB with key auth disabled, a container registry, Container Apps running as a managed identity, and Entra sign-in in front of the dashboard. Two scripts handle Entra: [`infra/setup-entra.sh`](infra/setup-entra.sh) registers the API (with the `Events.Write` role) and the dashboard sign-in app, and [`infra/grant-events-write.sh`](infra/grant-events-write.sh) gives your pipeline's service connection the role.
+[docs/metrics.md](docs/metrics.md) covers deploying, both auth modes, reading the dashboard, the pricing file for cost estimates, every environment variable, and running the service locally.
 
 ## Repository layout
 
@@ -207,6 +185,8 @@ Missing or invalid credentials get `401`. [`metrics/scripts/send-event-curl.sh`]
 | `examples/` | An example PR pipeline and example rules files. |
 | `metrics/` | Optional metrics ingestion API and dashboard (Go, Cosmos DB). |
 | `infra/` | Bicep and Entra setup scripts for the metrics infrastructure. |
+| `docs/` | Parameter reference, troubleshooting and the metrics guide. |
+| `tools/` | Maintenance scripts, such as the parameter reference generator. |
 | `.github/` | GitHub Actions CI and Dependabot configuration. |
 | `.azuredevops/` | Azure Pipelines CI for the engine, for teams that host a copy in Azure Repos. |
 
@@ -216,10 +196,11 @@ Every push to `main` and `development` and every pull request runs [GitHub Actio
 
 | Job | What it checks |
 | --- | --- |
-| PowerShell | Pester 5.6.1 tests in `ai-code-review/tests`, and PSScriptAnalyzer 1.23.0 with zero findings allowed. |
+| PowerShell | Pester 5.6.1 tests in `ai-code-review/tests`, PSScriptAnalyzer 1.23.0 with zero findings allowed, and a check that [`docs/parameters.md`](docs/parameters.md) matches the template. |
 | Go | `gofmt`, `go vet`, `go test -race` and `go build` for `metrics/`. |
 | Docker | Builds the metrics image (no push), checks it does not run as root, smoke-tests `/healthz`, and checks an unauthenticated `POST /events` gets `401`. |
 | Secret scan | gitleaks over the full git history. |
+| DCO sign-off | On pull requests, every commit carries a `Signed-off-by` line (see [CONTRIBUTING.md](CONTRIBUTING.md#developer-certificate-of-origin)). |
 | Bicep | Builds and lints every file under `infra/` with a pinned Bicep CLI, and runs shellcheck on its scripts. |
 
 Actions are pinned by commit SHA, the workflow token is read-only, and Dependabot keeps actions, Go modules and the Docker base image current.
@@ -237,14 +218,13 @@ cd metrics
 gofmt -l . && go vet ./... && go test -race ./... && go build ./...
 ```
 
-<!-- TODO(X6): link CONTRIBUTING.md (local setup, checks, commit style). -->
+To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the checks, commit style and the DCO sign-off.
 
 ## Security
 
-The model receives your base prompt and rules file, file paths and line numbers, the line-numbered diff, and the first part of the bot's own earlier comments on the pull request. Content in the diff is treated as untrusted and is never followed as an instruction.
+The model receives your base prompt and rules file, file paths and line numbers, the line-numbered diff with a few lines of context, the branch names, and the first 150 characters of the bot's own earlier comments on the pull request. Content in the diff is treated as untrusted and is never followed as an instruction, and the reviewer can only comment: it cannot approve, vote or change code.
 
-<!-- TODO(X4): link SECURITY.md (prompt-injection model, exactly what the model and the metrics service receive, credential handling, how to report a vulnerability). -->
-A full security policy, including how to report a vulnerability, will be published in `SECURITY.md`.
+[SECURITY.md](SECURITY.md) lists exactly what the model and the metrics service receive, how prompt injection and credentials are handled, a hardening checklist, and how to report a vulnerability privately.
 
 ## Licence
 
