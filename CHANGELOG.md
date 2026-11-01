@@ -11,3 +11,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - GitHub Actions CI (`.github/workflows/ci.yml`): Pester tests and PSScriptAnalyzer for the engine, `gofmt`/`go vet`/`go test -race`/`go build` for the metrics API, and a gitleaks scan of the full history. Actions are pinned by commit SHA and the workflow token is read-only.
 - Dependabot updates for GitHub Actions and Go modules.
+- Bicep for the metrics store (`infra/main.bicep`, `infra/main.bicepparam`): a serverless Cosmos DB account with key-based auth disabled, database `AIMetrics` and container `Events` partitioned on `/featureName`.
+- CI job that builds and lints every Bicep file under `infra/` with a version- and checksum-pinned Bicep CLI; linter levels live in `infra/bicepconfig.json`.
