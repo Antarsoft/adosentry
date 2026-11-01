@@ -1,4 +1,4 @@
-module github.com/antarsoft/ado-ai-code-review/metrics
+module github.com/antarsoft/adosentry/metrics
 
 go 1.25.0
 
