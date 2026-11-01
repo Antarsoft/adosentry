@@ -9,7 +9,7 @@ trigger:
   paths:
     include:
       - ai-code-review/*
-      - pipelines/ai-code-review-ci.yml
+      - .azuredevops/ai-code-review-ci.yml
 
 pr: none
 

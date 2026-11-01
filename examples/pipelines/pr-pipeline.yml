@@ -10,7 +10,7 @@ resources:
   repositories:
     - repository: templates
       type: git                              # or: github, with endpoint: <GitHub service connection>
-      name: <project>/ado-ai-code-review      # your imported copy of this repository
+      name: <project>/pullpicket               # your imported copy of this repository
       ref: refs/tags/v1.0.0
 
 stages:
@@ -28,6 +28,7 @@ stages:
       promptMode: rules
       foundryAuth: entra
       modelVariableGroup: 'ai-code-review'
-      # metricsVariableGroup: 'ai-code-review-metrics'   # optional dashboard
+      # metricsVariableGroup: 'ai-code-review-metrics'   # optional dashboard: aiMetricsApiUrl + aiMetricsApiResource
+      # metricsAuth: entra                               # or 'key' with the secret aiMetricsApiKey in that group
       # reviewPathSpec: 'src/**/*.ts'                   # optional: only review these paths
       # reviewDeletedFiles: true

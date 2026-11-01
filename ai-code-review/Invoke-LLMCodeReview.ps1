@@ -375,6 +375,7 @@ function Invoke-SingleLLMCodeReviewBatch {
     $promptTokens = 0
     $completionTokens = 0
     $reasoningTokens = 0
+    $cachedTokens = 0
     $totalTokens = 0
     if ($response.usage) {
         $promptTokens = $response.usage.prompt_tokens
@@ -382,6 +383,10 @@ function Invoke-SingleLLMCodeReviewBatch {
         $totalTokens = $response.usage.total_tokens
         if ($response.usage.completion_tokens_details) {
             $reasoningTokens = $response.usage.completion_tokens_details.reasoning_tokens
+        }
+        # Prompt tokens served from the model's prompt cache: a subset of prompt_tokens.
+        if ($response.usage.prompt_tokens_details -and $response.usage.prompt_tokens_details.cached_tokens) {
+            $cachedTokens = $response.usage.prompt_tokens_details.cached_tokens
         }
     }
 
@@ -423,6 +428,7 @@ function Invoke-SingleLLMCodeReviewBatch {
         PromptTokens     = $promptTokens
         CompletionTokens = $completionTokens
         ReasoningTokens  = $reasoningTokens
+        CachedTokens     = $cachedTokens
         TotalTokens      = $totalTokens
         FinishReason     = $finishReason
     }
@@ -585,7 +591,7 @@ function Invoke-ReviewBatchWithSplit {
     # reported back so the caller can post what it has and fail the run (partial result).
     $reviews = [System.Collections.Generic.List[object]]::new()
     $failures = [System.Collections.Generic.List[object]]::new()
-    $usage = @{ LatencyMs = 0; PromptTokens = 0; CompletionTokens = 0; ReasoningTokens = 0; TotalTokens = 0 }
+    $usage = @{ LatencyMs = 0; PromptTokens = 0; CompletionTokens = 0; ReasoningTokens = 0; CachedTokens = 0; TotalTokens = 0 }
     $splits = 0
     $successes = 0
 
@@ -618,6 +624,7 @@ function Invoke-ReviewBatchWithSplit {
         $usage.PromptTokens += $batchResult.PromptTokens
         $usage.CompletionTokens += $batchResult.CompletionTokens
         $usage.ReasoningTokens += $batchResult.ReasoningTokens
+        $usage.CachedTokens += $batchResult.CachedTokens
         $usage.TotalTokens += $batchResult.TotalTokens
         $successes++
     }
@@ -679,6 +686,42 @@ function Get-FoundryAccessToken {
     # print it in clear if anything ever logged it. Register it so the agent masks it.
     if ($env:TF_BUILD) { Write-Host "##vso[task.setsecret]$token" }
     return $token
+}
+
+function Get-MetricsRequestHeaders {
+    <#
+    .SYNOPSIS
+    Builds the credential header for POST /events on the metrics API.
+    .DESCRIPTION
+    'entra' asks Azure for an access token for the metrics API (its application ID URI, such as
+    api://pullpicket-metrics) with the sign-in the pipeline task already made, and sends it as a
+    bearer token; the service connection's identity needs the API's Events.Write app role.
+    'key' sends the shared key as X-Api-Key. Pipeline variables that are not defined reach the
+    script as their own $(name) text, so that counts as unset. A missing setting throws: the
+    caller sends no event rather than one the API will refuse.
+    #>
+    param(
+        [ValidateSet('entra', 'key')]
+        [string]$AuthMode = 'entra',
+        [string]$Resource = '',
+        [string]$Key = ''
+    )
+
+    $isUnset = { param([string]$Value) [string]::IsNullOrWhiteSpace($Value) -or $Value.StartsWith('$(') }
+
+    if ($AuthMode -eq 'key') {
+        if (& $isUnset $Key) {
+            throw "metricsAuth is 'key' but aiMetricsApiKey is not set in the metrics variable group."
+        }
+        return @{ 'X-Api-Key' = $Key }
+    }
+
+    if (& $isUnset $Resource) {
+        throw "metricsAuth is 'entra' but aiMetricsApiResource (the metrics API's application ID URI, such as api://pullpicket-metrics) is not set in the metrics variable group."
+    }
+    # Get-FoundryAccessToken works for any resource and registers the token as a pipeline secret.
+    $token = Get-FoundryAccessToken -Resource $Resource
+    return @{ Authorization = "Bearer $token" }
 }
 
 function Invoke-LLMCodeReview {
@@ -765,11 +808,15 @@ function Invoke-LLMCodeReview {
         $MaxFileTokens = 80000
     )
 
+    # An unset foundry-key variable reaches the script as the literal text '$(foundry-key)'.
+    # Treat it as no key, so the run fails with a clear message instead of sending that text.
+    if ($Key.StartsWith('$(')) { $Key = '' }
+
     if ($AuthMode -eq 'entra') {
         Write-Host "Authenticating to the model with an Entra token for $TokenResource."
         $Key = Get-FoundryAccessToken -Resource $TokenResource
     } elseif ([string]::IsNullOrWhiteSpace($Key)) {
-        throw 'No model API key was provided and AuthMode is not entra.'
+        throw 'No model API key was provided and AuthMode is not entra. Set foundry-key in the model variable group, or use foundryAuth: entra.'
     }
 
     $schema = @{
@@ -848,6 +895,7 @@ function Invoke-LLMCodeReview {
             PromptTokens     = 0
             CompletionTokens = 0
             ReasoningTokens  = 0
+            CachedTokens     = 0
             TotalTokens      = 0
             BatchCount       = 0
             FilesExcluded    = $codeChanges.FilesExcluded.Count
@@ -869,6 +917,7 @@ function Invoke-LLMCodeReview {
     $totalPromptTokens = 0
     $totalCompletionTokens = 0
     $totalReasoningTokens = 0
+    $totalCachedTokens = 0
     $totalTokens = 0
     $batchNumber = 1
 
@@ -912,6 +961,7 @@ function Invoke-LLMCodeReview {
         $totalPromptTokens += $outcome.Usage.PromptTokens
         $totalCompletionTokens += $outcome.Usage.CompletionTokens
         $totalReasoningTokens += $outcome.Usage.ReasoningTokens
+        $totalCachedTokens += $outcome.Usage.CachedTokens
         $totalTokens += $outcome.Usage.TotalTokens
         $batchesSplit += $outcome.Splits
         $requestsSucceeded += $outcome.Successes
@@ -954,6 +1004,7 @@ function Invoke-LLMCodeReview {
         PromptTokens      = $totalPromptTokens
         CompletionTokens  = $totalCompletionTokens
         ReasoningTokens   = $totalReasoningTokens
+        CachedTokens      = $totalCachedTokens
         TotalTokens       = $totalTokens
         BatchCount        = $codeChanges.BatchCount
         FilesExcluded     = $codeChanges.FilesExcluded.Count

@@ -1,4 +1,5 @@
 BeforeAll {
+    . (Join-Path $PSScriptRoot '..' 'Resolve-AdoCollectionUrl.ps1')
     . (Join-Path $PSScriptRoot '..' 'Set-PullRequestComments.ps1')
     function Get-AzAccessToken { param($ResourceUrl, [switch]$AsSecureString) [PSCustomObject]@{ token = (ConvertTo-SecureString 'x' -AsPlainText -Force) } }
     $script:Posted = @()
@@ -148,5 +149,20 @@ Describe 'Set-PullRequestComments fingerprints and in-run repeats (F-18)' {
                 @{ fileName = 'p.yml'; lineNumber = 20; comment = $script:Pin; fingerprint = 'aaaabbbbccccdddd' },
                 @{ fileName = 'p.yml'; lineNumber = 20; comment = $script:Sql; fingerprint = 'aaaabbbbccccdddd' }) }
         $r.CommentsPosted | Should -Be 2
+    }
+}
+
+Describe 'Set-PullRequestComments never approves (E6)' {
+    It 'has no AutoApprove parameter' {
+        (Get-Command Set-PullRequestComments).Parameters.Keys | Should -Not -Contain 'AutoApprove'
+    }
+
+    It 'reports no-comments and calls no reviewer API when there is nothing to post' {
+        $script:Methods = [System.Collections.Generic.List[string]]::new()
+        Mock Invoke-RestMethod { $script:Methods.Add("$Method $Uri"); [PSCustomObject]@{ id = 1 } }
+        $r = Invoke-Post @{ reviews = @() }
+        $r.Outcome | Should -Be 'no-comments'
+        $r.PSObject.Properties.Name | Should -Not -Contain 'AutoApproved'
+        $script:Methods | Where-Object { $_ -match '^Put |/reviewers/' } | Should -BeNullOrEmpty
     }
 }

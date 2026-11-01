@@ -21,7 +21,10 @@ BeforeAll {
         $message = [PSCustomObject]@{ content = $Content; refusal = $Refusal }
         return [PSCustomObject]@{
             choices = @([PSCustomObject]@{ message = $message; finish_reason = $FinishReason })
-            usage   = [PSCustomObject]@{ prompt_tokens = 10; completion_tokens = 5; total_tokens = 15 }
+            usage   = [PSCustomObject]@{
+                prompt_tokens = 10; completion_tokens = 5; total_tokens = 15
+                prompt_tokens_details = [PSCustomObject]@{ cached_tokens = 4 }
+            }
         }
     }
 
@@ -64,6 +67,13 @@ Describe 'Invoke-LLMCodeReview' {
             (Invoke-OneBatch).Content | Should -Be '{"reviews":[]}'
             $script:RestCalls | Should -Be 1
             $script:Waits.Count | Should -Be 0
+        }
+
+        It 'reports the cached prompt tokens from usage.prompt_tokens_details' {
+            Set-RestQueue @(New-LlmResponse)
+            $result = Invoke-OneBatch
+            $result.PromptTokens | Should -Be 10
+            $result.CachedTokens | Should -Be 4
         }
 
         It 'retries a 503 and succeeds on the third attempt' {
@@ -554,6 +564,12 @@ Describe 'Invoke-LLMCodeReview' {
         It 'fails clearly when key mode has no key' {
             { Invoke-LLMCodeReview -SourceBranch s -TargetBranch t -PathToReviewFile $script:PromptFile -ModelName m `
                 -ModelDeploymentUrl u 6>$null } | Should -Throw '*No model API key*'
+        }
+
+        It 'treats an unset foundry-key macro as no key (E4)' {
+            Mock Invoke-SingleLLMCodeReviewBatch { throw 'should not be called' }
+            { Invoke-LLMCodeReview -SourceBranch s -TargetBranch t -PathToReviewFile $script:PromptFile -ModelName m `
+                -ModelDeploymentUrl u -Key '$(foundry-key)' -AuthMode key 6>$null } | Should -Throw '*No model API key*'
         }
     }
 

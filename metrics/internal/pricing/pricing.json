@@ -1,0 +1,7 @@
+{
+  "models": {
+    "gpt-5-mini": { "inputPerMillion": 0.25, "outputPerMillion": 2.00 },
+    "gpt-5.4-mini": { "inputPerMillion": 0.75, "outputPerMillion": 4.50 },
+    "gpt-5.6-luna": { "inputPerMillion": 0.20, "outputPerMillion": 1.20 }
+  }
+}

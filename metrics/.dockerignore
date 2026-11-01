@@ -1,0 +1,8 @@
+# Only the module files, main.go and internal/ are needed to build the image.
+*
+!go.mod
+!go.sum
+!*.go
+!internal
+internal/**/*_test.go
+internal/cosmostest

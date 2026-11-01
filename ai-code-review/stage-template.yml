@@ -1,27 +1,42 @@
 parameters:
+  # Path to the repository's rules file (or, with promptMode: legacy, its complete prompt), relative to
+  # the repository root. The file is left out of its own review.
   - name: promptFile
     type: string
-  # 'legacy' (default): promptFile is the repo's complete prompt. 'rules': promptFile is the repo's
-  # short rules file and the engine adds its shared base prompt (prompts/base.codereviewprompt.md).
+  # 'rules' (default): promptFile is the repo's short rules file and the engine adds its shared
+  # base prompt (prompts/base.codereviewprompt.md). 'legacy': promptFile is the repo's complete prompt.
   - name: promptMode
     type: string
-    default: "legacy"
+    default: "rules"
     values:
-      - legacy
       - rules
+      - legacy
   # Azure Resource Manager service connection the review runs as. Its identity must be able to
   # comment on pull requests (member of the Azure DevOps organisation) and, with foundryAuth: entra,
   # hold the Cognitive Services OpenAI User role on the model's Azure OpenAI / Foundry resource.
   - name: azureSubscription
     type: string
-  # Variable group with modelName, modelDeploymentUrl, reasoningEffort (and foundry-key for key auth).
+  # Variable group with modelName, modelDeploymentUrl, reasoningEffort (and foundry-key for foundryAuth: key).
   - name: modelVariableGroup
     type: string
     default: "ai-code-review"
-  # Optional variable group with aiMetricsApiUrl and aiMetricsApiKey. Leave empty to send no metrics.
+  # Optional variable group for the metrics API. Leave empty to send no metrics. It holds
+  # aiMetricsApiUrl, plus aiMetricsApiResource (metricsAuth: entra) or aiMetricsApiKey (metricsAuth: key).
   - name: metricsVariableGroup
     type: string
     default: ""
+  # How the review proves itself to the metrics API (its AUTH_MODE). 'entra' (default) gets a token
+  # for aiMetricsApiResource, the API's application ID URI, with the service connection's identity,
+  # which needs the API's Events.Write app role. 'key' sends aiMetricsApiKey as X-Api-Key; the key is
+  # only mapped into the step in that mode.
+  - name: metricsAuth
+    type: string
+    default: "entra"
+    values:
+      - entra
+      - key
+  # Set to true to let the pipeline carry on when the review step fails (for example, the model is
+  # unreachable). The step then shows as succeeded with issues instead of failed.
   - name: continueOnError
     type: boolean
     default: false
@@ -30,35 +45,49 @@ parameters:
   - name: aiReviewDebugLogging
     type: string
     default: ""
+  # Space-separated git pathspecs; only matching files are reviewed. Empty reviews every changed file.
   - name: reviewPathSpec
     type: string
     default: ""
+  # Space-separated wildcard patterns matched against repo-relative paths (such as 'docs/* *.generated.cs').
+  # Matching files are skipped, on top of the default excludes.
   - name: reviewExcludePathSpec
     type: string
     default: ""
+  # Most files sent to the model in one request. Larger pull requests are split into batches.
   - name: reviewMaxFilesPerBatch
     type: number
     default: 25
+  # Approximate token budget for one request, prompt included. A batch the model rejects as too large is
+  # split in two and retried.
   - name: reviewMaxBatchTokens
     type: number
     default: 300000
+  # Approximate token limit for one file's diff. Lines past it are not reviewed and the run summary
+  # counts the file as truncated.
   - name: reviewMaxFileTokens
     type: number
     default: 80000
+  # Set to true to list deleted file paths (not their content) in the review input, so the model can flag a
+  # risky deletion with a comment on the pull request as a whole.
   - name: reviewDeletedFiles
     type: boolean
     default: false
+  # Skip lockfiles, minified files and source maps, images, fonts, documents, archives and binaries.
   - name: reviewDefaultExcludes
     type: boolean
     default: true
-  # 'key' uses the foundry-key variable. 'entra' signs in with the service connection's
-  # identity instead (it needs the Cognitive Services OpenAI User role on the Foundry account).
+  # 'entra' (default) signs in with the service connection's identity (it needs the Cognitive
+  # Services OpenAI User role on the Foundry account). 'key' uses the foundry-key variable from
+  # the model variable group instead; the key is only mapped into the step in that mode.
   - name: foundryAuth
     type: string
-    default: "key"
+    default: "entra"
     values:
-      - key
       - entra
+      - key
+  # Resource the Entra token is requested for with foundryAuth: entra. The default suits Azure AI Foundry;
+  # use https://cognitiveservices.azure.com for a classic Azure OpenAI resource.
   - name: foundryTokenResource
     type: string
     default: "https://ai.azure.com"
@@ -66,6 +95,9 @@ parameters:
 stages:
   - stage: AICodeReview
     displayName: "AI Code Review"
+    # Only pull request runs have a pull request to review. Skip the stage on CI, manual and
+    # scheduled runs instead of failing on the missing System.PullRequest.* variables.
+    condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
     variables:
       - group: ${{ parameters.modelVariableGroup }}
       - ${{ if ne(parameters.metricsVariableGroup, '') }}:
@@ -97,6 +129,8 @@ stages:
               ScriptType: "InlineScript"
               azurePowerShellVersion: LatestVersion
               pwsh: true
+              # String parameters inside '...' go through replace(..., , '') so a single
+              # quote in a path or path spec is doubled (PowerShell's escape) instead of ending the string.
               Inline: |
                 Import-Module "$(Pipeline.Workspace)/templates/ai-code-review/AICodeReview.psd1" -Force -ErrorAction Stop
 
@@ -110,16 +144,16 @@ stages:
 
                 try {
                     $existingThreadData = Get-ExistingReviewThreads `
-                      -Organization ("$(System.CollectionUri)" -split "/" | Select-Object -index 3) `
-                      -PullRequestId $(System.PullRequest.PullRequestId) `
-                      -Project $(System.TeamProject) `
-                      -RepositoryName $(Build.Repository.Name)
+                      -CollectionUri $env:AICR_COLLECTION_URI `
+                      -PullRequestId $env:AICR_PULL_REQUEST_ID `
+                      -Project $env:AICR_PROJECT `
+                      -RepositoryName $env:AICR_REPOSITORY
 
                     $phase = 'review'
                     $reviewResult = Invoke-LLMCodeReview `
-                      -SourceBranch $(System.PullRequest.SourceBranch) `
-                      -TargetBranch $(System.PullRequest.TargetBranch) `
-                      -PathToReviewFile '$(Build.SourcesDirectory)/${{ parameters.promptFile }}' `
+                      -SourceBranch $env:AICR_SOURCE_BRANCH `
+                      -TargetBranch $env:AICR_TARGET_BRANCH `
+                      -PathToReviewFile '$(Build.SourcesDirectory)/${{ replace(parameters.promptFile, '''', '''''') }}' `
                       -ModelName '$(modelName)' `
                       -ModelDeploymentUrl '$(modelDeploymentUrl)' `
                       -ReasoningEffort '$(reasoningEffort)' `
@@ -127,11 +161,11 @@ stages:
                       -AuthMode '${{ parameters.foundryAuth }}' `
                       -PromptMode '${{ parameters.promptMode }}' `
                       -BasePromptFile '$(Pipeline.Workspace)/templates/ai-code-review/prompts/base.codereviewprompt.md' `
-                      -TokenResource '${{ parameters.foundryTokenResource }}' `
+                      -TokenResource '${{ replace(parameters.foundryTokenResource, '''', '''''') }}' `
                       -LogFullDiff '$(aiReviewDebugLogging)' `
                       -PriorReviewHistory $existingThreadData.Threads `
-                      -PathSpec '${{ parameters.reviewPathSpec }}' `
-                      -ExcludePathSpec '${{ parameters.reviewExcludePathSpec }} ${{ parameters.promptFile }}' `
+                      -PathSpec '${{ replace(parameters.reviewPathSpec, '''', '''''') }}' `
+                      -ExcludePathSpec '${{ replace(parameters.reviewExcludePathSpec, '''', '''''') }} ${{ replace(parameters.promptFile, '''', '''''') }}' `
                       -MaxFilesPerBatch ${{ parameters.reviewMaxFilesPerBatch }} `
                       -MaxBatchTokens ${{ parameters.reviewMaxBatchTokens }} `
                       -MaxFileTokens ${{ parameters.reviewMaxFileTokens }} `
@@ -140,10 +174,10 @@ stages:
 
                     $phase = 'post'
                     $postResult = Set-PullRequestComments `
-                      -Organization ("$(System.CollectionUri)" -split "/" | Select-Object -index 3) `
-                      -PullRequestId $(System.PullRequest.PullRequestId) `
-                      -Project $(System.TeamProject) `
-                      -RepositoryName $(Build.Repository.Name) `
+                      -CollectionUri $env:AICR_COLLECTION_URI `
+                      -PullRequestId $env:AICR_PULL_REQUEST_ID `
+                      -Project $env:AICR_PROJECT `
+                      -RepositoryName $env:AICR_REPOSITORY `
                       -Reviews $reviewResult.Content `
                       -ExistingThreads $existingThreadData.Threads
 
@@ -193,12 +227,12 @@ stages:
                         featureName = 'ai-code-review'
                         source      = 'ado-pipeline'
                         custom      = [ordered]@{
-                            adoProject               = '$(System.TeamProject)'
-                            repository               = '$(Build.Repository.Name)'
-                            prId                     = '$(System.PullRequest.PullRequestId)'
+                            adoProject               = [string]$env:AICR_PROJECT
+                            repository               = [string]$env:AICR_REPOSITORY
+                            prId                     = [string]$env:AICR_PULL_REQUEST_ID
                             pipelineRunId            = '$(Build.BuildId)'
-                            sourceBranch             = '$(System.PullRequest.SourceBranch)'
-                            targetBranch             = '$(System.PullRequest.TargetBranch)'
+                            sourceBranch             = [string]$env:AICR_SOURCE_BRANCH
+                            targetBranch             = [string]$env:AICR_TARGET_BRANCH
                             filesReviewed            = if ($reviewResult) { $reviewResult.FilesReviewed } else { 0 }
                             totalFilesChanged        = if ($reviewResult) { $reviewResult.TotalFilesChanged } else { 0 }
                             filesExcluded            = if ($reviewResult) { $reviewResult.FilesExcluded } else { 0 }
@@ -223,6 +257,7 @@ stages:
                             promptTokens             = if ($reviewResult) { $reviewResult.PromptTokens } else { 0 }
                             completionTokens         = if ($reviewResult) { $reviewResult.CompletionTokens } else { 0 }
                             reasoningTokens          = if ($reviewResult) { $reviewResult.ReasoningTokens } else { 0 }
+                            cachedTokens             = if ($reviewResult) { $reviewResult.CachedTokens } else { 0 }
                             tokensUsed               = if ($reviewResult) { $reviewResult.TotalTokens } else { 0 }
                             model                    = '$(modelName)'
                         }
@@ -232,9 +267,14 @@ stages:
                         if ($errorStatusCode) { $metricsEvent.custom.errorStatusCode = $errorStatusCode }
                     }
 
+                    $metricsHeaders = Get-MetricsRequestHeaders `
+                        -AuthMode '${{ parameters.metricsAuth }}' `
+                        -Resource ([string]$env:AI_METRICS_API_RESOURCE) `
+                        -Key ([string]$env:AI_METRICS_API_KEY)
+
                     Invoke-RestMethod -Uri "$($metricsUrl.TrimEnd('/'))/events" `
                         -Method Post `
-                        -Headers @{ 'X-Api-Key' = $env:AI_METRICS_API_KEY } `
+                        -Headers $metricsHeaders `
                         -ContentType 'application/json' `
                         -Body ($metricsEvent | ConvertTo-Json -Depth 10) | Out-Null
                     Write-Host "AI Code Review metrics event sent."
@@ -247,7 +287,20 @@ stages:
                 if ($reviewFailure) {
                     throw $reviewFailure
                 }
+            # Values a pull request author or project admin can choose (branch, project and
+            # repository names) reach the script as environment variables, never as text pasted
+            # into the inline script, so quotes or $(...) in them cannot change the script.
             env:
-              FOUNDRY_KEY: $(foundry-key)
+              AICR_COLLECTION_URI: $(System.CollectionUri)
+              AICR_PROJECT: $(System.TeamProject)
+              AICR_REPOSITORY: $(Build.Repository.Name)
+              AICR_PULL_REQUEST_ID: $(System.PullRequest.PullRequestId)
+              AICR_SOURCE_BRANCH: $(System.PullRequest.SourceBranch)
+              AICR_TARGET_BRANCH: $(System.PullRequest.TargetBranch)
+              ${{ if eq(parameters.foundryAuth, 'key') }}:
+                FOUNDRY_KEY: $(foundry-key)
               AI_METRICS_API_URL: $(aiMetricsApiUrl)
-              AI_METRICS_API_KEY: $(aiMetricsApiKey)
+              ${{ if eq(parameters.metricsAuth, 'key') }}:
+                AI_METRICS_API_KEY: $(aiMetricsApiKey)
+              ${{ if eq(parameters.metricsAuth, 'entra') }}:
+                AI_METRICS_API_RESOURCE: $(aiMetricsApiResource)

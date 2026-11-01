@@ -1,0 +1,22 @@
+# Maintainer working notes (kept locally, never published)
+/AGENT_PROMPT.md
+/HANDOFF.md
+/PLAN.html
+
+# Test and analyzer output
+testResults.xml
+pester-results.xml
+*.trx
+coverage.out
+
+# Secrets and local settings
+.env
+.env.*
+*.local.json
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
