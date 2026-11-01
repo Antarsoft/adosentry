@@ -135,6 +135,9 @@ function renderState(message, isError) {
   grid.appendChild(div);
 }
 
+// Optional tenant, passed through to each dashboard link.
+const TENANT = new URLSearchParams(location.search).get('tenantId');
+
 async function load() {
   renderState('Loading dashboards…', false);
   try {
@@ -155,7 +158,7 @@ async function load() {
 
       const card = document.createElement('a');
       card.className = 'card';
-      card.href = `/dashboard?feature=${encodeURIComponent(f)}`;
+      card.href = `/dashboard?feature=${encodeURIComponent(f)}${TENANT ? `&tenantId=${encodeURIComponent(TENANT)}` : ''}`;
 
       const name = document.createElement('div');
       name.className = 'card-name';

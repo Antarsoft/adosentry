@@ -1,0 +1,2 @@
+# Vendored, minified third-party code: hide from diffs and language stats.
+internal/web/static/*.js linguist-vendored -diff

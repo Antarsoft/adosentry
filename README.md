@@ -167,7 +167,21 @@ Ways to keep costs down: leave `reviewDefaultExcludes` on, use `reviewPathSpec` 
 
 `metrics/` is a small Go service that stores one event per review run in Cosmos DB and serves a dashboard with runs, comments, severities, tokens and estimated cost over time. To use it, deploy the service, then create a variable group with `aiMetricsApiUrl` and pass its name as `metricsVariableGroup`. If the variable group is not set, the stage skips the metrics event.
 
-Cost estimates come from a pricing table keyed by `modelName`. If your deployment name is not in the table, the dashboard still records the run but shows its cost as $0.
+Cost estimates come from a pricing table keyed by `modelName`. If your deployment name is not in the table, the dashboard still records the run but shows its cost as $0. The built-in table is [`metrics/internal/pricing/pricing.json`](metrics/internal/pricing/pricing.json); to use your own rates, mount a file with the same shape and set `PRICING_FILE` to its path.
+
+The service reads these environment variables:
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `COSMOS_ENDPOINT` | yes | Cosmos DB account endpoint, such as `https://<account>.documents.azure.com:443/`. |
+| `COSMOS_DATABASE` | yes | Database name, such as `AIMetrics`. |
+| `COSMOS_CONTAINER` | yes | Container name, such as `Events`. |
+| `COSMOS_KEY` | no | Account key. Leave it unset to sign in with Microsoft Entra ID (managed identity in Azure, Azure CLI locally); the identity needs the Cosmos DB Built-in Data Contributor role. The account in `infra/` disables keys, so it needs Entra. Set `AZURE_CLIENT_ID` to use a user-assigned identity. |
+| `PRICING_FILE` | no | Path to a pricing file that replaces the built-in rates. |
+| `ALLOWED_ORIGINS` | no | Comma-separated browser origins allowed to call the API from another site. Empty means same-origin only. |
+| `PORT` | no | Listen port, default `8080`. |
+
+Events may carry an optional `tenantId` (default `default`). Each tenant's events are stored and summarised separately; a single-team deployment can ignore it.
 
 <!-- TODO(M5-M7, M14): document the final ingest auth. Planned: Entra token with the Events.Write app role (preferred) or an X-Api-Key fallback, selected with AUTH_MODE; unauthenticated writes rejected by default. -->
 **Authentication (in progress).** Ingest will require a credential by default: an Entra access token carrying the `Events.Write` app role, or an API key as a fallback. The dashboard will require Entra sign-in. This section will be completed when that work lands.

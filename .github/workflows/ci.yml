@@ -129,9 +129,9 @@ jobs:
       - name: Smoke test /healthz
         run: |
           # Dummy Cosmos settings: the client is created lazily, and /healthz never calls Cosmos.
+          # No COSMOS_KEY, so the image starts in its production mode (Entra ID / managed identity).
           docker run -d --name metrics-smoke -p 8080:8080 \
             -e COSMOS_ENDPOINT=https://example.documents.azure.com:443/ \
-            -e COSMOS_KEY=ZHVtbXk= \
             -e COSMOS_DATABASE=ci \
             -e COSMOS_CONTAINER=ci \
             "$IMAGE"

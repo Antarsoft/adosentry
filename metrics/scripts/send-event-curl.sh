@@ -9,6 +9,7 @@ curl -X POST "$AI_METRICS_API_URL/events" \
   -H "Content-Type: application/json" \
   -d '{
     "featureName": "ai-code-review",
+    "tenantId": "default",
     "source": "ado-pipeline",
     "custom": {
       "repository": "my-repo",
@@ -22,6 +23,9 @@ curl -X POST "$AI_METRICS_API_URL/events" \
     }
   }'
 
+# "tenantId" is optional and defaults to "default"; a single-tenant deployment
+# can leave it out. It takes letters, digits, ".", "_" and "-" (64 at most).
+#
 # Note everything under "custom" is completely free-form -- a different AI
 # feature (say, a PR summarizer, or a triage bot with no concept of a
 # "repository") just sends whatever fields make sense for it. Nothing to

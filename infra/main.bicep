@@ -21,7 +21,7 @@ param cosmosAccountName string = toLower('${namePrefix}-cosmos-${uniqueString(re
 @description('SQL database name for metrics events.')
 param cosmosDatabaseName string = 'AIMetrics'
 
-@description('Container name for metrics events (partition key /featureName).')
+@description('Container name for metrics events (hierarchical partition key /tenantId, /featureName).')
 param cosmosContainerName string = 'Events'
 
 @description('Tags applied to every resource.')
