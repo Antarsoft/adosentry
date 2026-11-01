@@ -1,4 +1,8 @@
-# AdoSentry
+<p align="center">
+  <img src="docs/assets/logo.svg" alt="AdoSentry logo" width="120">
+</p>
+
+<h1 align="center">AdoSentry</h1>
 
 AI pull request review for Azure DevOps. AdoSentry is a pipeline stage template that sends the changes in a pull request to a model you host in Azure OpenAI or Azure AI Foundry, then posts the findings back to the pull request as inline comments. An optional metrics service records each run so you can see cost, volume and outcomes on a dashboard.
 
