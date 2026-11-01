@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-01
+
+First release as PullPicket. The engine's `ModuleVersion` restarts at `1.0.0` (it was `7.0.0` under the old name), so the dashboard's engine version table lists `1.0.0` below older events from `7.0.0`.
+
+### Breaking defaults at a glance
+
+Check these before you upgrade a pipeline or a metrics deployment. Each one is described in full under "Changed (breaking)" and "Removed" below.
+
+| What | Before | 1.0.0 default | What to do |
+|---|---|---|---|
+| Name | AdoSentry | PullPicket (Go module `github.com/antarsoft/pullpicket/metrics`, Bicep prefix `pullpicket`) | Rename your repository resource and imports |
+| `foundryAuth` | `key` | `entra` (needs Cognitive Services OpenAI User) | `foundryAuth: key` |
+| `promptMode` | `legacy` | `rules` | `promptMode: legacy` |
+| `AutoApprove` | Optional reviewer vote | Removed; the reviewer never approves | Approve by hand |
+| `AUTH_MODE` (metrics service) | Not needed; `POST /events` was open | Required; the service will not start without it | `AUTH_MODE=none` for local development only |
+| `metricsAuth` | API key | `entra` (token with the `Events.Write` app role) | `metricsAuth: key` |
+| Engine functions | `-Organization` | `-CollectionUri` on `Get-ExistingReviewThreads`, `Set-PullRequestComments`, `Get-ReviewFeedbackReport` | `-Organization` still works as a dev.azure.com fallback |
+| Metrics store and API | Partition key `/featureName`; `Access-Control-Allow-Origin: *`; `totalTokens.cached` always `0` | Partition key `/tenantId` + `/featureName` (recreate the container); no CORS headers unless `ALLOWED_ORIGINS` is set; `totalTokens.cached` sums `custom.cachedTokens` | Set `ALLOWED_ORIGINS` for a dashboard on another origin |
+
 ### Changed (breaking)
 
 - The project is renamed from AdoSentry to PullPicket, because "Sentry" is a registered mark in developer tooling and the Visual Studio Marketplace asks for "Azure DevOps" in full rather than "ADO". Marketplace listings will be named "PullPicket for Azure DevOps". The Go module path is now `github.com/antarsoft/pullpicket/metrics`, the Bicep `namePrefix` and `application` tag default to `pullpicket`, and examples use `api://pullpicket-metrics` and `<project>/pullpicket`. Existing imports of the repository keep working under their own name; rename your copy and the `name:` in your pipeline's `resources.repositories` when you move to the new repository.
@@ -52,3 +71,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `infra/setup-entra.sh` registers the metrics API (with the `Events.Write` app role) and the dashboard sign-in app (assignment required), and `infra/grant-events-write.sh` gives a pipeline's service connection `Events.Write`. CI runs shellcheck on both.
 - Documentation: a [parameter reference](docs/parameters.md) generated from `stage-template.yml` by `tools/Update-ParameterReference.ps1` (CI fails if it is stale), a [troubleshooting guide](docs/troubleshooting.md), a [metrics guide](docs/metrics.md), [SECURITY.md](SECURITY.md) with what the model and the metrics service receive and how to report a vulnerability, and [CONTRIBUTING.md](CONTRIBUTING.md).
 - Contributions are signed off under the Developer Certificate of Origin; a `DCO sign-off` CI job checks pull request commits.
+
+[Unreleased]: https://github.com/Antarsoft/pullpicket/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Antarsoft/pullpicket/releases/tag/v1.0.0
