@@ -28,6 +28,39 @@ param cosmosContainerName string = 'Events'
 @maxLength(50)
 param registryName string = toLower('${replace(namePrefix, '-', '')}${uniqueString(resourceGroup().id)}')
 
+@description('Image tag in the registry to run, such as a git commit. Leave empty on the first deploy: everything but the Container App is created, so you can push the image and register the Entra apps first.')
+param imageTag string = ''
+
+@description('How POST /events is authenticated (the app\'s AUTH_MODE).')
+@allowed(['entra', 'key', 'entra,key'])
+param authMode string = 'entra'
+
+@description('Tenant that issues the API\'s tokens (ENTRA_TENANT_ID). Defaults to this deployment\'s tenant.')
+param entraTenantId string = tenant().tenantId
+
+@description('The API app registration\'s application ID URI (api://...), from setup-entra.sh.')
+param apiAppIdUri string = ''
+
+@description('The API app registration\'s client (application) ID, from setup-entra.sh.')
+param apiClientId string = ''
+
+@description('Optional comma-separated object ids or client ids allowed to write without the Events.Write role (ENTRA_ALLOWED_PRINCIPALS).')
+param entraAllowedPrincipals string = ''
+
+@description('Shared key for AUTH_MODE key or entra,key (METRICS_API_KEY), at least 32 characters. Leave empty for entra.')
+@secure()
+param metricsApiKey string = ''
+
+@description('Minimum replicas; 0 scales to zero when idle.')
+@minValue(0)
+@maxValue(10)
+param minReplicas int = 0
+
+@description('Maximum replicas.')
+@minValue(1)
+@maxValue(10)
+param maxReplicas int = 2
+
 @description('Tags applied to every resource.')
 param tags object = {
   application: 'pullpicket'
@@ -59,6 +92,43 @@ module identity 'modules/identity.bicep' = {
     location: location
     name: '${namePrefix}-metrics-id'
     registryName: registry.outputs.name
+    cosmosAccountName: cosmos.outputs.accountName
+    tags: tags
+  }
+}
+
+module environment 'modules/environment.bicep' = {
+  name: 'environment'
+  params: {
+    location: location
+    name: '${namePrefix}-env'
+    logAnalyticsName: '${namePrefix}-logs'
+    tags: tags
+  }
+}
+
+var appName = '${namePrefix}-metrics'
+
+module app 'modules/containerapp.bicep' = if (!empty(imageTag)) {
+  name: 'app'
+  params: {
+    location: location
+    name: appName
+    environmentId: environment.outputs.id
+    identityId: identity.outputs.id
+    identityClientId: identity.outputs.clientId
+    registryLoginServer: registry.outputs.loginServer
+    image: '${registry.outputs.loginServer}/pullpicket-metrics:${imageTag}'
+    cosmosEndpoint: cosmos.outputs.endpoint
+    cosmosDatabaseName: cosmos.outputs.databaseName
+    cosmosContainerName: cosmos.outputs.containerName
+    authMode: authMode
+    entraTenantId: entraTenantId
+    entraAudiences: filter([apiAppIdUri, apiClientId], audience => !empty(audience))
+    entraAllowedPrincipals: entraAllowedPrincipals
+    metricsApiKey: metricsApiKey
+    minReplicas: minReplicas
+    maxReplicas: maxReplicas
     tags: tags
   }
 }
@@ -80,3 +150,9 @@ output registryName string = registry.outputs.name
 
 @description('Container registry login server; the image is <loginServer>/pullpicket-metrics:<tag>.')
 output registryLoginServer string = registry.outputs.loginServer
+
+@description('Container App name.')
+output containerAppName string = appName
+
+@description('Public URL of the metrics API and dashboard. Known from the first deploy, before the app exists, so it can go into the Entra redirect URI.')
+output metricsUrl string = 'https://${appName}.${environment.outputs.defaultDomain}'
