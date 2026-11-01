@@ -1,14 +1,14 @@
 parameters:
   - name: promptFile
     type: string
-  # 'legacy' (default): promptFile is the repo's complete prompt. 'rules': promptFile is the repo's
-  # short rules file and the engine adds its shared base prompt (prompts/base.codereviewprompt.md).
+  # 'rules' (default): promptFile is the repo's short rules file and the engine adds its shared
+  # base prompt (prompts/base.codereviewprompt.md). 'legacy': promptFile is the repo's complete prompt.
   - name: promptMode
     type: string
-    default: "legacy"
+    default: "rules"
     values:
-      - legacy
       - rules
+      - legacy
   # Azure Resource Manager service connection the review runs as. Its identity must be able to
   # comment on pull requests (member of the Azure DevOps organisation) and, with foundryAuth: entra,
   # hold the Cognitive Services OpenAI User role on the model's Azure OpenAI / Foundry resource.
@@ -67,6 +67,9 @@ parameters:
 stages:
   - stage: AICodeReview
     displayName: "AI Code Review"
+    # Only pull request runs have a pull request to review. Skip the stage on CI, manual and
+    # scheduled runs instead of failing on the missing System.PullRequest.* variables.
+    condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
     variables:
       - group: ${{ parameters.modelVariableGroup }}
       - ${{ if ne(parameters.metricsVariableGroup, '') }}:

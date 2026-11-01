@@ -117,8 +117,8 @@ Describe 'stage-template.yml' {
         $script:Yaml | Should -Match 'batchesSplit'
     }
 
-    It 'defaults to the legacy prompt mode and passes the mode and base prompt to the engine (F-34)' {
-        $script:Yaml | Should -Match '(?s)name: promptMode\s+type: string\s+default: "legacy"'
+    It 'defaults to the rules prompt mode and passes the mode and base prompt to the engine (F-34, E5)' {
+        $script:Yaml | Should -Match '(?s)name: promptMode\s+type: string\s+default: "rules"'
         $script:Yaml | Should -Match "-PromptMode '\$\{\{ parameters.promptMode \}\}'"
         $script:Yaml | Should -Match 'templates/ai-code-review/prompts/base.codereviewprompt.md'
     }
@@ -142,6 +142,14 @@ Describe 'stage-template.yml' {
     It 'sends no metrics key header when aiMetricsApiKey is unset (E4)' {
         $script:Yaml | Should -Match "\`$metricsKey -and -not \`$metricsKey\.StartsWith\('\`$\('\)"
         $script:Yaml | Should -Not -Match "'X-Api-Key' = \`$env:AI_METRICS_API_KEY"
+    }
+
+    It 'still offers the legacy prompt mode (E5)' {
+        $script:Yaml | Should -Match '(?s)name: promptMode\s+type: string\s+default: "rules"\s+values:\s+- rules\s+- legacy'
+    }
+
+    It 'runs the stage only for pull request builds (E7)' {
+        $script:Yaml | Should -Match "(?m)^  - stage: AICodeReview\r?\n(?:    .*\r?\n)*?    condition: and\(succeeded\(\), eq\(variables\['Build\.Reason'\], 'PullRequest'\)\)"
     }
 
     It 'fails the run on a review error by default' {
