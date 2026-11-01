@@ -66,9 +66,11 @@ You need an Azure DevOps project with an Azure Repos repository, an Azure subscr
 
 Import PullPicket into your Azure DevOps organisation (Repos > Import repository) or keep it on GitHub and reach it through a GitHub service connection. Pin a release tag, such as `v1.0.0`, so template changes only reach your pipelines when you choose.
 
+A new project already has a repository named after the project. Import into a new repository named `pullpicket`, or, if you import into that default one, use its name in step 6 (`name: <project>/<project>`).
+
 ### 2. Deploy a model
 
-Create an Azure OpenAI or Azure AI Foundry resource and deploy a chat model. Any chat model that supports structured output (`response_format` with a JSON schema) works; PullPicket does not prescribe one. Note the deployment's chat completions URL (it ends in `/chat/completions?api-version=...`).
+Create an Azure OpenAI or Azure AI Foundry resource and deploy a chat model. Any chat model that supports structured output (`response_format` with a JSON schema) works; PullPicket does not prescribe one. Note the deployment's chat completions URL (it ends in `/chat/completions?api-version=...`). For a classic Azure OpenAI resource (`https://<resource>.openai.azure.com/`), also set `foundryTokenResource: 'https://cognitiveservices.azure.com'` in step 6; the default suits Azure AI Foundry.
 
 ### 3. Create a service connection and grant it access
 
@@ -76,6 +78,10 @@ Create an **Azure Resource Manager** service connection (workload identity feder
 
 - the **Cognitive Services OpenAI User** role on the model resource, and
 - membership in your Azure DevOps organisation, with permission to **Contribute to pull requests** on the repositories it reviews.
+
+To add a service principal as an organisation user, the organisation must be connected to the identity's Microsoft Entra tenant (Organization settings > Microsoft Entra). Otherwise Azure DevOps treats the name as an email address and rejects it.
+
+The review needs no Azure management role. When Azure DevOps creates the connection automatically it grants **Contributor** on the subscription or resource group you pick; you can remove that assignment.
 
 ### 4. Create the variable group
 

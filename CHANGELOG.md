@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - 2026-11-01
 
-First release as PullPicket. The engine's `ModuleVersion` restarts at `1.0.0` (it was `7.0.0` under the old name), so the dashboard's engine version table lists `1.0.0` below older events from `7.0.0`.
+First release as PullPicket. The engine's `ModuleVersion` restarts at `1.0.0` (it was `7.0.0` under the old name). The dashboard's engine version table is unaffected: it shows the tag the pipeline checks the templates repository out at (such as `v1.0.0`), or the short commit when it points at a branch.
 
 ### Breaking defaults at a glance
 
