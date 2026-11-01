@@ -1,4 +1,4 @@
-# PSScriptAnalyzer settings for the ai-code-review engine (used by .azuredevops/ai-code-review-ci.yml).
+# PSScriptAnalyzer settings for the ai-code-review engine (used by .azuredevops/ai-code-review-ci.yml and .github/workflows/ci.yml).
 # Every finding at Error or Warning fails CI, except the rules below, which the engine breaks on purpose.
 @{
     Severity     = @('Error', 'Warning')
