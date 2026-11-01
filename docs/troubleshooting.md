@@ -38,6 +38,8 @@ Reading history and posting are best-effort, so the step can still finish green 
 
 To find the identity, open the service connection (Project settings > Service connections), choose **Manage Service Principal** or **Manage App registration**, and note its display name and application (client) id.
 
+If adding the identity fails with `Given email address '<name>' is invalid`, the organisation is not connected to a Microsoft Entra tenant, so Azure DevOps cannot look up service principals. Connect it under Organization settings > Microsoft Entra to the tenant that holds the service connection, sign out and back in, and pick the identity from the search suggestions.
+
 ## The model call fails with 401 or 403
 
 ```
@@ -95,6 +97,7 @@ To compare, run the same pipeline once on a Microsoft-hosted pool (`pool: vmImag
 
 | Log message | Cause | Fix |
 | --- | --- | --- |
+| `The repository pullpicket in project <project> could not be retrieved` | The `name:` of the `templates` repository resource does not match the imported repository. A new project's default repository is named after the project. | Set `name: <project>/<repository>` to the repository you imported into. |
 | `promptMode is 'rules' but the base prompt file was not found` | The PullPicket repository was not checked out as `templates`. | Name the repository resource `templates` (see the quick start). |
 | `No model API key was provided and AuthMode is not entra` | `foundryAuth: key` without a `foundry-key` value. | Add `foundry-key` as a secret variable in the model variable group, or use `foundryAuth: entra`. |
 | `... was truncated (finish_reason: length)` | The model ran out of output tokens on a large batch. | Lower `reviewMaxFilesPerBatch` or `reviewMaxBatchTokens`, or lower `reasoningEffort`. |

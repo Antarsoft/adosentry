@@ -20,6 +20,11 @@ Bicep and two `az` scripts that deploy the PullPicket metrics API and dashboard 
 ## Before you start
 
 - Azure CLI 2.60 or later, signed in (`az login`), plus `jq` and `bash`. Azure Cloud Shell has all three.
+- The resource providers registered on the subscription. A new subscription often has none of them yet, and the deployment then fails with "not registered":
+
+  ```bash
+  for p in Microsoft.App Microsoft.OperationalInsights Microsoft.DocumentDB Microsoft.ContainerRegistry Microsoft.ManagedIdentity; do az provider register --namespace $p; done
+  ```
 - On the resource group: **Owner**, or **Contributor** plus **Role Based Access Control Administrator**, because the deployment creates role assignments.
 - In Entra: rights to create app registrations and assign users to them (the default for members in most tenants, or **Application Administrator**).
 - Docker is optional: `az acr build` builds the image in Azure.
@@ -76,7 +81,7 @@ infra/grant-events-write.sh --principal <service connection client id>
 | Variable | Value |
 | --- | --- |
 | `aiMetricsApiUrl` | `metricsUrl` |
-| `aiMetricsApiResource` | the API's application ID URI (`PULLPICKET_API_APP_ID_URI` in `.env.entra`, such as `api://pullpicket-metrics`) |
+| `aiMetricsApiResource` | the API's application ID URI (`PULLPICKET_API_APP_ID_URI` in `.env.entra`). It is `api://pullpicket-metrics` unless the tenant only allows URIs on a verified domain; `setup-entra.sh` then uses `api://<API client id>` and says so. |
 
 **7. Check it.** Open `<metricsUrl>/` in a browser: you should be sent to the Microsoft sign-in page, then see the landing page. Without a credential, `POST /events` answers `401`:
 
