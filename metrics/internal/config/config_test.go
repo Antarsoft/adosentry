@@ -40,13 +40,17 @@ func TestLoadMissing(t *testing.T) {
 	if err == nil {
 		t.Fatal("no error with required variables missing")
 	}
+	_, err = Load(env(map[string]string{}))
+	if err == nil {
+		t.Fatal("no error with required variables missing")
+	}
 	for _, name := range []string{"COSMOS_ENDPOINT", "COSMOS_DATABASE", "COSMOS_CONTAINER"} {
 		if !strings.Contains(err.Error(), name) {
 			t.Errorf("error %q does not name %s", err, name)
 		}
 	}
 	if strings.Contains(err.Error(), "COSMOS_KEY") {
-		t.Errorf("error %q names COSMOS_KEY, which was set", err)
+		t.Errorf("error %q names COSMOS_KEY, which is optional", err)
 	}
 }
 
@@ -82,5 +86,19 @@ func TestAllowedOrigins(t *testing.T) {
 		if !tt.wantErr && strings.Join(cfg.AllowedOrigins, "|") != strings.Join(tt.want, "|") {
 			t.Errorf("%q: origins = %v, want %v", tt.raw, cfg.AllowedOrigins, tt.want)
 		}
+	}
+}
+
+func TestKeyIsOptional(t *testing.T) {
+	cfg, err := Load(env(map[string]string{"COSMOS_ENDPOINT": "e", "COSMOS_DATABASE": "d", "COSMOS_CONTAINER": "c"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Cosmos.Key != "" || !strings.Contains(cfg.Cosmos.AuthMode(), "Entra") {
+		t.Errorf("auth mode = %q", cfg.Cosmos.AuthMode())
+	}
+	cfg.Cosmos.Key = "a2V5"
+	if !strings.Contains(cfg.Cosmos.AuthMode(), "COSMOS_KEY") {
+		t.Errorf("auth mode with key = %q", cfg.Cosmos.AuthMode())
 	}
 }

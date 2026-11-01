@@ -17,7 +17,9 @@
 // Configuration (environment variables):
 //
 //	COSMOS_ENDPOINT   e.g. https://your-account.documents.azure.com:443/
-//	COSMOS_KEY        Cosmos DB account key
+//	COSMOS_KEY        optional account key; when unset the service signs in with
+//	                  Microsoft Entra ID (DefaultAzureCredential: managed identity in Azure,
+//	                  Azure CLI locally; AZURE_CLIENT_ID picks a user-assigned identity)
 //	COSMOS_DATABASE   e.g. AIMetrics
 //	COSMOS_CONTAINER  e.g. Events
 //	PRICING_FILE      optional path to a pricing.json replacing the built-in model rates
@@ -105,6 +107,7 @@ func newHandler(cfg config.Config) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("cosmos: %s, auth: %s", cfg.Cosmos.Endpoint, cfg.Cosmos.AuthMode())
 	api := &handlers.API{
 		Store:    store,
 		Prices:   prices,

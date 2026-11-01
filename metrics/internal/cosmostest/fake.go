@@ -20,11 +20,14 @@ import (
 // Server is a fake Cosmos DB account holding one container.
 type Server struct {
 	URL string
+	// Client trusts the fake's certificate when it was started with NewTLS.
+	Client *http.Client
 
 	mu      sync.Mutex
 	docs    map[string]map[string]json.RawMessage // partition key -> id -> document; key levels joined by "/"
 	queries []Query
 	fail    int // when non-zero, every data request answers with this status
+	auth    []string
 }
 
 // Query records one query request as the fake received it.
@@ -34,14 +37,33 @@ type Query struct {
 	Parameters   map[string]any
 }
 
-// New starts a fake account and stops it when the test ends.
+// New starts a fake account over plain HTTP and stops it when the test
+// ends. That suits key auth; token auth needs NewTLS.
 func New(t testing.TB) *Server {
 	t.Helper()
 	s := &Server{docs: map[string]map[string]json.RawMessage{}}
 	ts := httptest.NewServer(http.HandlerFunc(s.serve))
 	t.Cleanup(ts.Close)
-	s.URL = ts.URL
+	s.URL, s.Client = ts.URL, ts.Client()
 	return s
+}
+
+// NewTLS starts a fake account over HTTPS. The Azure SDK only sends bearer
+// tokens over TLS, so Entra ID tests need this; use Client as transport.
+func NewTLS(t testing.TB) *Server {
+	t.Helper()
+	s := &Server{docs: map[string]map[string]json.RawMessage{}}
+	ts := httptest.NewTLSServer(http.HandlerFunc(s.serve))
+	t.Cleanup(ts.Close)
+	s.URL, s.Client = ts.URL, ts.Client()
+	return s
+}
+
+// AuthHeaders returns the Authorization header of every request so far.
+func (s *Server) AuthHeaders() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.auth...)
 }
 
 // FailWith makes every following create or query answer with status.
@@ -106,6 +128,9 @@ func (s *Server) put(pk, id string, doc json.RawMessage) bool {
 }
 
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	s.auth = append(s.auth, r.Header.Get("Authorization"))
+	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	// The SDK reads account properties first; an empty object is enough.
 	if r.Method == http.MethodGet && r.URL.Path == "/" {

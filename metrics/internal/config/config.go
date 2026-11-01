@@ -35,7 +35,7 @@ func Load(getenv func(string) string) (Config, error) {
 		Port: getenv("PORT"),
 		Cosmos: storage.CosmosConfig{
 			Endpoint:  require("COSMOS_ENDPOINT"),
-			Key:       require("COSMOS_KEY"),
+			Key:       getenv("COSMOS_KEY"), // optional: unset means Entra ID
 			Database:  require("COSMOS_DATABASE"),
 			Container: require("COSMOS_CONTAINER"),
 		},

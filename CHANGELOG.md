@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The metrics container's partition key is now hierarchical, `/tenantId` then `/featureName` (`MultiHash`). Cosmos cannot change a container's partition key in place, so a container created from an earlier version of `infra/` has to be recreated.
 - Metrics events take an optional `tenantId` (default `"default"`; letters, digits, `.`, `_` and `-`, up to 64 characters, otherwise `400`). `GET /metrics/summary` takes an optional `tenantId` with the same default and only reads that tenant's events; the dashboard pages pass `?tenantId=` through.
 
+- The metrics API no longer sends `Access-Control-Allow-Origin: *`. By default it sends no CORS headers (the dashboard is same-origin and senders are not browsers); set `ALLOWED_ORIGINS` to a comma-separated list of exact origins to allow a dashboard hosted elsewhere.
+- `POST /events` rejects bodies over 64 KB with `413`.
+
 ### Removed
 
 - `AutoApprove` on `Set-PullRequestComments`, its reviewer vote call and the `auto-approved` outcome. The reviewer no longer approves pull requests.
@@ -29,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Branch, project and repository names reach the inline script through environment variables, so a source branch name containing `$(...)` or a quote can no longer run code in the review step.
 
 ### Added
+
+- The metrics API signs in to Cosmos DB with Microsoft Entra ID (`DefaultAzureCredential`: managed identity in Azure, Azure CLI locally) when `COSMOS_KEY` is unset. This is required for the account in `infra/`, which disables key auth. `COSMOS_KEY` still works as a fallback.
+- Model prices for the metrics cost estimate live in `metrics/internal/pricing/pricing.json`; `PRICING_FILE` points the service at a replacement file. A malformed file stops the service at startup.
+- The metrics API sets read, write, header and idle timeouts and shuts down gracefully on `SIGTERM`.
+- The dashboard's Chart.js is compiled into the metrics binary and served from `/static/`; the dashboard no longer loads anything from a CDN.
+- The metrics service is split into packages under `metrics/internal/` with characterisation tests for the HTTP contract (run against an in-memory Cosmos fake) and table-driven tests for aggregation, pricing and configuration.
 
 - GitHub Actions CI (`.github/workflows/ci.yml`): Pester tests and PSScriptAnalyzer for the engine, `gofmt`/`go vet`/`go test -race`/`go build` for the metrics API, and a gitleaks scan of the full history. Actions are pinned by commit SHA and the workflow token is read-only.
 - Dependabot updates for GitHub Actions and Go modules.
