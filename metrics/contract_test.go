@@ -203,7 +203,17 @@ func TestPages(t *testing.T) {
 			t.Errorf("GET %s: body lacks %q", path, marker)
 		}
 	}
-	for _, path := range []string{"/no-such-page", "/dashboard/below", "/index.html"} {
+	js := do(t, http.MethodGet, api.URL+"/static/chart.umd.min.js", "")
+	expect(t, js, http.StatusOK, "")
+	if ct := js.header.Get("Content-Type"); !strings.HasPrefix(ct, "text/javascript") {
+		t.Errorf("chart.js Content-Type = %q", ct)
+	}
+	if !strings.HasPrefix(js.body, "/*!\n * Chart.js v4.5.0") || js.header.Get("Cache-Control") == "" {
+		t.Errorf("chart.js served wrongly: %q..., Cache-Control %q", js.body[:min(40, len(js.body))], js.header.Get("Cache-Control"))
+	}
+	expect(t, do(t, http.MethodPost, api.URL+"/static/chart.umd.min.js", "{}"), http.StatusMethodNotAllowed, "")
+
+	for _, path := range []string{"/no-such-page", "/dashboard/below", "/index.html", "/static/nope.js", "/static/../main.go", "/static/"} {
 		expect(t, do(t, http.MethodGet, api.URL+path, ""), http.StatusNotFound, "404 page not found\n")
 	}
 }

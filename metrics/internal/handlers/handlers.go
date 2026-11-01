@@ -41,6 +41,7 @@ func (a *API) Routes() *http.ServeMux {
 	mux.HandleFunc("/metrics/summary", a.handleSummary)
 	mux.HandleFunc("/metrics/features", a.handleFeatures)
 	mux.HandleFunc("/dashboard", web.Page("dashboard.html"))
+	mux.Handle("/static/", web.Static())
 	mux.HandleFunc("/", a.handleIndex(web.Page("index.html")))
 	return mux
 }
