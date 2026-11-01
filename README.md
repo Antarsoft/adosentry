@@ -196,8 +196,8 @@ Events may carry an optional `tenantId` (default `default`). Each tenant's event
 
 Missing or invalid credentials get `401`. [`metrics/scripts/send-event-curl.sh`](metrics/scripts/send-event-curl.sh) sends a test event with either credential.
 
-<!-- TODO(I1-I7, X5): link infra/README.md and docs/metrics.md once the full deployment (ACR, Container Apps, Entra setup script) is in place. -->
-**Deployment (in progress).** [`infra/`](infra) currently holds Bicep for the Cosmos DB store (serverless, key auth disabled). Container Registry, Container Apps, the Entra setup script and step-by-step deploy docs will follow.
+<!-- TODO(X5): link docs/metrics.md (auth modes, using the dashboard, pricing file) once written. -->
+**Deployment.** [`infra/README.md`](infra/README.md) deploys the service to Azure in one resource group: Cosmos DB with key auth disabled, a container registry, Container Apps running as a managed identity, and Entra sign-in in front of the dashboard. Two scripts handle Entra: [`infra/setup-entra.sh`](infra/setup-entra.sh) registers the API (with the `Events.Write` role) and the dashboard sign-in app, and [`infra/grant-events-write.sh`](infra/grant-events-write.sh) gives your pipeline's service connection the role.
 
 ## Repository layout
 
@@ -206,7 +206,7 @@ Missing or invalid credentials get `401`. [`metrics/scripts/send-event-curl.sh`]
 | `ai-code-review/` | The review engine: PowerShell module, stage template, base prompt and Pester tests. |
 | `examples/` | An example PR pipeline and example rules files. |
 | `metrics/` | Optional metrics ingestion API and dashboard (Go, Cosmos DB). |
-| `infra/` | Bicep for the metrics infrastructure. |
+| `infra/` | Bicep and Entra setup scripts for the metrics infrastructure. |
 | `.github/` | GitHub Actions CI and Dependabot configuration. |
 | `.azuredevops/` | Azure Pipelines CI for the engine, for teams that host a copy in Azure Repos. |
 
@@ -220,7 +220,7 @@ Every push to `main` and `development` and every pull request runs [GitHub Actio
 | Go | `gofmt`, `go vet`, `go test -race` and `go build` for `metrics/`. |
 | Docker | Builds the metrics image (no push), checks it does not run as root, smoke-tests `/healthz`, and checks an unauthenticated `POST /events` gets `401`. |
 | Secret scan | gitleaks over the full git history. |
-| Bicep | Builds and lints every file under `infra/` with a pinned Bicep CLI. |
+| Bicep | Builds and lints every file under `infra/` with a pinned Bicep CLI, and runs shellcheck on its scripts. |
 
 Actions are pinned by commit SHA, the workflow token is read-only, and Dependabot keeps actions, Go modules and the Docker base image current.
 
