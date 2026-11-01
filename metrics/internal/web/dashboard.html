@@ -291,6 +291,8 @@ function prettify(name) {
 
 const params = new URLSearchParams(location.search);
 const FEATURE = params.get('feature');
+// Optional; the API uses the "default" tenant when it is absent.
+const TENANT = params.get('tenantId');
 
 let chart = null;
 let dayChart = null;
@@ -364,7 +366,8 @@ async function load() {
   panels.forEach(p => p.classList.add('loading')); // hold previous render, dimmed, while refetching
 
   try {
-    const resp = await fetch(`/metrics/summary?feature=${encodeURIComponent(FEATURE)}&days=${days}`);
+    const tenantParam = TENANT ? `&tenantId=${encodeURIComponent(TENANT)}` : '';
+    const resp = await fetch(`/metrics/summary?feature=${encodeURIComponent(FEATURE)}&days=${days}${tenantParam}`);
     if (!resp.ok) {
       const body = await resp.text();
       throw new Error(`HTTP ${resp.status}: ${body}`);

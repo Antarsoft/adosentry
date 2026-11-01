@@ -68,9 +68,12 @@ resource container 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/container
   properties: {
     resource: {
       id: containerName
+      // Hierarchical key: tenant first, then feature. Events without a
+      // tenantId are stored under "default". The key cannot be changed once
+      // the container exists, so the tenant level is here from the start.
       partitionKey: {
-        paths: ['/featureName']
-        kind: 'Hash'
+        paths: ['/tenantId', '/featureName']
+        kind: 'MultiHash'
         version: 2
       }
     }

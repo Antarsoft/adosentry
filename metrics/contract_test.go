@@ -170,7 +170,7 @@ func TestPostEventStoresEnvelope(t *testing.T) {
 		t.Fatalf("response = %v, want only a v4 UUID eventId", created)
 	}
 
-	docs := fake.Docs(feature)
+	docs := fake.Docs("default/" + feature)
 	if len(docs) != 1 {
 		t.Fatalf("stored %d documents, want 1", len(docs))
 	}
@@ -185,6 +185,7 @@ func TestPostEventStoresEnvelope(t *testing.T) {
 		"eventId":        created["eventId"],
 		"timestamp":      "2026-01-02T03:04:05Z",
 		"featureName":    "ai-code-review",
+		"tenantId":       "default",
 		"featureVersion": "2.1.0",
 		"source":         "ado-pipeline",
 		"schemaVersion":  "1",
@@ -202,7 +203,7 @@ func TestPostEventDefaults(t *testing.T) {
 	got := do(t, http.MethodPost, api.URL+"/events", `{"featureName":"other-feature","eventId":"evt-1","schemaVersion":"7"}`)
 	expect(t, got, http.StatusCreated, `{"eventId":"evt-1"}`+"\n")
 
-	docs := fake.Docs("other-feature")
+	docs := fake.Docs("default/other-feature")
 	if len(docs) != 1 {
 		t.Fatalf("stored %d documents, want 1", len(docs))
 	}
@@ -268,11 +269,11 @@ func TestSummaryQuery(t *testing.T) {
 		}
 		queries := fake.Queries()
 		q := queries[len(queries)-1]
-		if q.Text != "SELECT c.custom, c.timestamp FROM c WHERE c.featureName = @feature AND c.timestamp >= @since ORDER BY c.timestamp ASC" {
+		if q.Text != "SELECT c.custom, c.timestamp FROM c WHERE c.tenantId = @tenant AND c.featureName = @feature AND c.timestamp >= @since ORDER BY c.timestamp ASC" {
 			t.Errorf("query text = %q", q.Text)
 		}
-		if q.PartitionKey != feature || q.Parameters["@feature"] != feature {
-			t.Errorf("query partition/feature = %q/%v", q.PartitionKey, q.Parameters["@feature"])
+		if q.PartitionKey != "default/"+feature || q.Parameters["@feature"] != feature || q.Parameters["@tenant"] != "default" {
+			t.Errorf("query partition/tenant/feature = %q/%v/%v", q.PartitionKey, q.Parameters["@tenant"], q.Parameters["@feature"])
 		}
 		since, err := time.Parse(time.RFC3339, fmt.Sprint(q.Parameters["@since"]))
 		wantSince := before.AddDate(0, 0, -want).Truncate(time.Second)
@@ -314,14 +315,16 @@ func TestSummaryGolden(t *testing.T) {
 		return today.AddDate(0, 0, -daysAgo).Add(time.Duration(hour) * time.Hour).Format(time.RFC3339)
 	}
 	n := 0
-	put := func(featureName, ts string, custom map[string]any) {
+	putTenant := func(tenant, featureName, ts string, custom map[string]any) {
 		n++
-		fake.Put(t, map[string]any{"id": fmt.Sprintf("e%02d", n), "featureName": featureName, "timestamp": ts, "custom": custom})
+		fake.Put(t, map[string]any{"id": fmt.Sprintf("e%02d", n), "tenantId": tenant, "featureName": featureName, "timestamp": ts, "custom": custom})
 	}
+	put := func(featureName, ts string, custom map[string]any) { putTenant("default", featureName, ts, custom) }
 
-	// Outside the 30-day window, and another feature's partition: both ignored.
+	// Outside the 30-day window, another feature, another tenant: all ignored.
 	put(feature, at(45, 1), map[string]any{"repository": "repo-a", "prId": "old", "commentsCount": 9})
 	put("other-feature", at(2, 1), map[string]any{"repository": "repo-a", "prId": "x", "commentsCount": 9})
+	putTenant("acme", feature, at(2, 1), map[string]any{"repository": "repo-a", "prId": "y", "commentsCount": 9})
 
 	put(feature, at(5, 1), map[string]any{
 		"repository": "repo-a", "prId": "1", "outcome": "success", "model": "gpt-5-mini", "engineVersion": "1.2.0",
@@ -460,5 +463,47 @@ func TestSummaryKeys(t *testing.T) {
 	}
 	if !slices.Equal(keys, want) {
 		t.Errorf("summary keys = %v\nwant %v", keys, want)
+	}
+}
+
+func TestTenants(t *testing.T) {
+	api, fake := newTestAPI(t)
+
+	expect(t, do(t, http.MethodPost, api.URL+"/events", `{"featureName":"ai-code-review","tenantId":"acme","eventId":"a1","custom":{"prId":"1","repository":"r"}}`), http.StatusCreated, `{"eventId":"a1"}`+"\n")
+	// Ids are unique per partition, so another tenant may reuse one.
+	expect(t, do(t, http.MethodPost, api.URL+"/events", `{"featureName":"ai-code-review","eventId":"a1","custom":{"prId":"2","repository":"r"}}`), http.StatusCreated, "")
+	expect(t, do(t, http.MethodPost, api.URL+"/events", `{"featureName":"ai-code-review","tenantId":"acme","eventId":"a1"}`), http.StatusConflict, "")
+
+	if docs := fake.Docs("acme/" + feature); len(docs) != 1 || docs[0]["tenantId"] != "acme" {
+		t.Errorf("acme partition = %v", docs)
+	}
+	if docs := fake.Docs("default/" + feature); len(docs) != 1 || docs[0]["tenantId"] != "default" {
+		t.Errorf("default partition = %v", docs)
+	}
+
+	for _, bad := range []string{"-lead", "has space", "slash/inside", "ünïcode", strings.Repeat("a", 65)} {
+		body, _ := json.Marshal(map[string]string{"featureName": feature, "tenantId": bad})
+		expect(t, do(t, http.MethodPost, api.URL+"/events", string(body)), http.StatusBadRequest, `{"error":"invalid tenantId"}`+"\n")
+	}
+	expect(t, do(t, http.MethodGet, api.URL+"/metrics/summary?feature="+feature+"&tenantId=a%2Fb", ""), http.StatusBadRequest, `{"error":"invalid tenantId"}`+"\n")
+
+	for tenant, wantPR := range map[string]float64{"": 1, "default": 1, "acme": 1, "nobody": 0} {
+		got := do(t, http.MethodGet, api.URL+"/metrics/summary?feature="+feature+"&tenantId="+tenant, "")
+		expect(t, got, http.StatusOK, "")
+		var s map[string]any
+		if err := json.Unmarshal([]byte(got.body), &s); err != nil {
+			t.Fatal(err)
+		}
+		if s["totalPRsReviewed"] != wantPR {
+			t.Errorf("tenant %q: totalPRsReviewed = %v, want %v", tenant, s["totalPRsReviewed"], wantPR)
+		}
+		q := fake.Queries()[len(fake.Queries())-1]
+		wantTenant := tenant
+		if wantTenant == "" {
+			wantTenant = "default"
+		}
+		if q.PartitionKey != wantTenant+"/"+feature || q.Parameters["@tenant"] != wantTenant {
+			t.Errorf("tenant %q: query partition %q, @tenant %v", tenant, q.PartitionKey, q.Parameters["@tenant"])
+		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/antarsoft/adosentry/metrics/internal/storage"
@@ -25,7 +26,8 @@ type Event struct {
 	EventID        string         `json:"eventId"`
 	Timestamp      string         `json:"timestamp"`   // event time (RFC3339); the server fills it in if omitted
 	ReceivedAt     string         `json:"receivedAt"`  // server receipt time, always set by the server
-	FeatureName    string         `json:"featureName"` // required; partition key; e.g. "ai-code-review"
+	FeatureName    string         `json:"featureName"` // required; partition key (second level); e.g. "ai-code-review"
+	TenantID       string         `json:"tenantId"`    // optional; partition key (first level); "default" when omitted
 	FeatureVersion string         `json:"featureVersion,omitempty"`
 	Source         string         `json:"source,omitempty"` // e.g. "ado-pipeline", "github-action", "manual"
 	SchemaVersion  string         `json:"schemaVersion,omitempty"`
@@ -50,6 +52,13 @@ func (a *API) handleEvents(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"featureName is required"}`, http.StatusBadRequest)
 		return
 	}
+	if e.TenantID == "" {
+		e.TenantID = storage.DefaultTenant
+	}
+	if !validTenantID(e.TenantID) {
+		http.Error(w, `{"error":"invalid tenantId"}`, http.StatusBadRequest)
+		return
+	}
 	now := a.now().UTC().Format(time.RFC3339)
 	if e.EventID == "" {
 		e.EventID = newID()
@@ -71,7 +80,7 @@ func (a *API) handleEvents(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), storeTimeout)
 	defer cancel()
-	if err := a.Store.Create(ctx, e.FeatureName, doc); err != nil {
+	if err := a.Store.Create(ctx, e.TenantID, e.FeatureName, doc); err != nil {
 		if errors.Is(err, storage.ErrDuplicate) {
 			http.Error(w, `{"error":"duplicate eventId"}`, http.StatusConflict)
 			return
@@ -82,6 +91,14 @@ func (a *API) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]string{"eventId": e.EventID})
+}
+
+// tenantIDPattern keeps tenant ids short and safe to put in URLs, logs and
+// partition keys: a letter or digit, then letters, digits, ".", "_" or "-".
+var tenantIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+
+func validTenantID(id string) bool {
+	return tenantIDPattern.MatchString(id)
 }
 
 // newID returns a random (version 4) UUID.

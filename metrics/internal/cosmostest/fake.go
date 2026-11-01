@@ -22,7 +22,7 @@ type Server struct {
 	URL string
 
 	mu      sync.Mutex
-	docs    map[string]map[string]json.RawMessage // partition key -> id -> document
+	docs    map[string]map[string]json.RawMessage // partition key -> id -> document; key levels joined by "/"
 	queries []Query
 	fail    int // when non-zero, every data request answers with this status
 }
@@ -30,7 +30,7 @@ type Server struct {
 // Query records one query request as the fake received it.
 type Query struct {
 	Text         string
-	PartitionKey string
+	PartitionKey string // levels joined by "/", e.g. "default/ai-code-review"
 	Parameters   map[string]any
 }
 
@@ -59,14 +59,17 @@ func (s *Server) Put(t testing.TB, doc map[string]any) {
 	if err != nil {
 		t.Fatalf("marshal seed document: %v", err)
 	}
-	pk, _ := doc["featureName"].(string)
+	tenant, _ := doc["tenantId"].(string)
+	feature, _ := doc["featureName"].(string)
+	pk := tenant + "/" + feature
 	id, _ := doc["id"].(string)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.put(pk, id, b)
 }
 
-// Docs returns every stored document in one partition, ordered by id.
+// Docs returns every stored document in one partition ("tenant/feature"),
+// ordered by id.
 func (s *Server) Docs(partitionKey string) []map[string]any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -147,7 +150,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 // query evaluates the one query shape the service sends:
 //
 //	SELECT c.custom, c.timestamp FROM c
-//	WHERE c.featureName = @feature AND c.timestamp >= @since
+//	WHERE c.tenantId = @tenant AND c.featureName = @feature AND c.timestamp >= @since
 //	ORDER BY c.timestamp ASC
 //
 // Any other query text is still recorded, then answered with no rows.
@@ -172,17 +175,19 @@ func (s *Server) query(w http.ResponseWriter, pk string, body []byte) {
 		id        string
 	}
 	rows := []row{}
-	if strings.Contains(req.Query, "c.featureName = @feature") {
+	if strings.Contains(req.Query, "c.tenantId = @tenant AND c.featureName = @feature") {
+		tenant, _ := q.Parameters["@tenant"].(string)
 		feature, _ := q.Parameters["@feature"].(string)
 		since, _ := q.Parameters["@since"].(string)
 		for _, raw := range s.docs[pk] {
 			var d struct {
 				ID          string          `json:"id"`
+				TenantID    string          `json:"tenantId"`
 				FeatureName string          `json:"featureName"`
 				Timestamp   string          `json:"timestamp"`
 				Custom      json.RawMessage `json:"custom"`
 			}
-			if json.Unmarshal(raw, &d) != nil || d.FeatureName != feature || d.Timestamp < since {
+			if json.Unmarshal(raw, &d) != nil || d.TenantID != tenant || d.FeatureName != feature || d.Timestamp < since {
 				continue
 			}
 			rows = append(rows, row{Custom: d.Custom, Timestamp: d.Timestamp, id: d.ID})
@@ -198,11 +203,11 @@ func (s *Server) query(w http.ResponseWriter, pk string, body []byte) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"Documents": rows, "_count": len(rows)})
 }
 
-// partitionKey turns the header value `["value"]` back into `value`.
+// partitionKey turns the header value `["a","b"]` back into `a/b`.
 func partitionKey(header string) string {
 	var parts []string
-	if json.Unmarshal([]byte(header), &parts) != nil || len(parts) != 1 {
+	if json.Unmarshal([]byte(header), &parts) != nil {
 		return ""
 	}
-	return parts[0]
+	return strings.Join(parts, "/")
 }

@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The review stage now runs only for pull request builds (`Build.Reason` is `PullRequest`) and is skipped on CI, manual and scheduled runs.
 - `Get-ExistingReviewThreads`, `Set-PullRequestComments` and `Get-ReviewFeedbackReport` take `-CollectionUri`; `-Organization` is now an optional fallback for dev.azure.com.
 
+- The metrics container's partition key is now hierarchical, `/tenantId` then `/featureName` (`MultiHash`). Cosmos cannot change a container's partition key in place, so a container created from an earlier version of `infra/` has to be recreated.
+- Metrics events take an optional `tenantId` (default `"default"`; letters, digits, `.`, `_` and `-`, up to 64 characters, otherwise `400`). `GET /metrics/summary` takes an optional `tenantId` with the same default and only reads that tenant's events; the dashboard pages pass `?tenantId=` through.
+
 ### Removed
 
 - `AutoApprove` on `Set-PullRequestComments`, its reviewer vote call and the `auto-approved` outcome. The reviewer no longer approves pull requests.

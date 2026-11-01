@@ -16,8 +16,9 @@ const (
 	queryTimeout      = 15 * time.Second
 )
 
-// handleSummary serves GET /metrics/summary?feature=<name>&days=<n>.
+// handleSummary serves GET /metrics/summary?feature=<name>&days=<n>&tenantId=<id>.
 // days defaults to 30; anything that is not a positive integer means 30.
+// tenantId defaults to "default".
 func (a *API) handleSummary(w http.ResponseWriter, r *http.Request) {
 	feature := r.URL.Query().Get("feature")
 	if feature == "" {
@@ -26,6 +27,14 @@ func (a *API) handleSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	if !a.isKnownFeature(feature) {
 		http.Error(w, `{"error":"unknown feature"}`, http.StatusNotFound)
+		return
+	}
+	tenantID := r.URL.Query().Get("tenantId")
+	if tenantID == "" {
+		tenantID = storage.DefaultTenant
+	}
+	if !validTenantID(tenantID) {
+		http.Error(w, `{"error":"invalid tenantId"}`, http.StatusBadRequest)
 		return
 	}
 	days := defaultWindowDays
@@ -41,7 +50,7 @@ func (a *API) handleSummary(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	agg := summary.New(feature, days, sinceTime, a.Prices)
-	err := a.Store.EachRow(ctx, feature, since, func(row storage.Row) error {
+	err := a.Store.EachRow(ctx, tenantID, feature, since, func(row storage.Row) error {
 		agg.Add(row)
 		return nil
 	})
