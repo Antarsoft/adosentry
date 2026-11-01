@@ -101,6 +101,8 @@ stages:
               ScriptType: "InlineScript"
               azurePowerShellVersion: LatestVersion
               pwsh: true
+              # String parameters inside '...' go through replace(..., , '') so a single
+              # quote in a path or path spec is doubled (PowerShell's escape) instead of ending the string.
               Inline: |
                 Import-Module "$(Pipeline.Workspace)/templates/ai-code-review/AICodeReview.psd1" -Force -ErrorAction Stop
 
@@ -114,16 +116,16 @@ stages:
 
                 try {
                     $existingThreadData = Get-ExistingReviewThreads `
-                      -CollectionUri '$(System.CollectionUri)' `
-                      -PullRequestId $(System.PullRequest.PullRequestId) `
-                      -Project $(System.TeamProject) `
-                      -RepositoryName $(Build.Repository.Name)
+                      -CollectionUri $env:AICR_COLLECTION_URI `
+                      -PullRequestId $env:AICR_PULL_REQUEST_ID `
+                      -Project $env:AICR_PROJECT `
+                      -RepositoryName $env:AICR_REPOSITORY
 
                     $phase = 'review'
                     $reviewResult = Invoke-LLMCodeReview `
-                      -SourceBranch $(System.PullRequest.SourceBranch) `
-                      -TargetBranch $(System.PullRequest.TargetBranch) `
-                      -PathToReviewFile '$(Build.SourcesDirectory)/${{ parameters.promptFile }}' `
+                      -SourceBranch $env:AICR_SOURCE_BRANCH `
+                      -TargetBranch $env:AICR_TARGET_BRANCH `
+                      -PathToReviewFile '$(Build.SourcesDirectory)/${{ replace(parameters.promptFile, '''', '''''') }}' `
                       -ModelName '$(modelName)' `
                       -ModelDeploymentUrl '$(modelDeploymentUrl)' `
                       -ReasoningEffort '$(reasoningEffort)' `
@@ -131,11 +133,11 @@ stages:
                       -AuthMode '${{ parameters.foundryAuth }}' `
                       -PromptMode '${{ parameters.promptMode }}' `
                       -BasePromptFile '$(Pipeline.Workspace)/templates/ai-code-review/prompts/base.codereviewprompt.md' `
-                      -TokenResource '${{ parameters.foundryTokenResource }}' `
+                      -TokenResource '${{ replace(parameters.foundryTokenResource, '''', '''''') }}' `
                       -LogFullDiff '$(aiReviewDebugLogging)' `
                       -PriorReviewHistory $existingThreadData.Threads `
-                      -PathSpec '${{ parameters.reviewPathSpec }}' `
-                      -ExcludePathSpec '${{ parameters.reviewExcludePathSpec }} ${{ parameters.promptFile }}' `
+                      -PathSpec '${{ replace(parameters.reviewPathSpec, '''', '''''') }}' `
+                      -ExcludePathSpec '${{ replace(parameters.reviewExcludePathSpec, '''', '''''') }} ${{ replace(parameters.promptFile, '''', '''''') }}' `
                       -MaxFilesPerBatch ${{ parameters.reviewMaxFilesPerBatch }} `
                       -MaxBatchTokens ${{ parameters.reviewMaxBatchTokens }} `
                       -MaxFileTokens ${{ parameters.reviewMaxFileTokens }} `
@@ -144,10 +146,10 @@ stages:
 
                     $phase = 'post'
                     $postResult = Set-PullRequestComments `
-                      -CollectionUri '$(System.CollectionUri)' `
-                      -PullRequestId $(System.PullRequest.PullRequestId) `
-                      -Project $(System.TeamProject) `
-                      -RepositoryName $(Build.Repository.Name) `
+                      -CollectionUri $env:AICR_COLLECTION_URI `
+                      -PullRequestId $env:AICR_PULL_REQUEST_ID `
+                      -Project $env:AICR_PROJECT `
+                      -RepositoryName $env:AICR_REPOSITORY `
                       -Reviews $reviewResult.Content `
                       -ExistingThreads $existingThreadData.Threads
 
@@ -197,12 +199,12 @@ stages:
                         featureName = 'ai-code-review'
                         source      = 'ado-pipeline'
                         custom      = [ordered]@{
-                            adoProject               = '$(System.TeamProject)'
-                            repository               = '$(Build.Repository.Name)'
-                            prId                     = '$(System.PullRequest.PullRequestId)'
+                            adoProject               = [string]$env:AICR_PROJECT
+                            repository               = [string]$env:AICR_REPOSITORY
+                            prId                     = [string]$env:AICR_PULL_REQUEST_ID
                             pipelineRunId            = '$(Build.BuildId)'
-                            sourceBranch             = '$(System.PullRequest.SourceBranch)'
-                            targetBranch             = '$(System.PullRequest.TargetBranch)'
+                            sourceBranch             = [string]$env:AICR_SOURCE_BRANCH
+                            targetBranch             = [string]$env:AICR_TARGET_BRANCH
                             filesReviewed            = if ($reviewResult) { $reviewResult.FilesReviewed } else { 0 }
                             totalFilesChanged        = if ($reviewResult) { $reviewResult.TotalFilesChanged } else { 0 }
                             filesExcluded            = if ($reviewResult) { $reviewResult.FilesExcluded } else { 0 }
@@ -236,8 +238,8 @@ stages:
                         if ($errorStatusCode) { $metricsEvent.custom.errorStatusCode = $errorStatusCode }
                     }
 
-                    # An unset aiMetricsApiKey reaches the script as the literal text '$(aiMetricsApiKey)'.
-                    # Send no key header then, rather than that text.
+                    # An unset aiMetricsApiKey reaches the script as its own macro text. Send no key
+                    # header then, rather than that text.
                     $metricsHeaders = @{}
                     $metricsKey = [string]$env:AI_METRICS_API_KEY
                     if ($metricsKey -and -not $metricsKey.StartsWith('$(')) { $metricsHeaders['X-Api-Key'] = $metricsKey }
@@ -257,7 +259,16 @@ stages:
                 if ($reviewFailure) {
                     throw $reviewFailure
                 }
+            # Values a pull request author or project admin can choose (branch, project and
+            # repository names) reach the script as environment variables, never as text pasted
+            # into the inline script, so quotes or $(...) in them cannot change the script.
             env:
+              AICR_COLLECTION_URI: $(System.CollectionUri)
+              AICR_PROJECT: $(System.TeamProject)
+              AICR_REPOSITORY: $(Build.Repository.Name)
+              AICR_PULL_REQUEST_ID: $(System.PullRequest.PullRequestId)
+              AICR_SOURCE_BRANCH: $(System.PullRequest.SourceBranch)
+              AICR_TARGET_BRANCH: $(System.PullRequest.TargetBranch)
               ${{ if eq(parameters.foundryAuth, 'key') }}:
                 FOUNDRY_KEY: $(foundry-key)
               AI_METRICS_API_URL: $(aiMetricsApiUrl)
