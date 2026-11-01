@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/antarsoft/adosentry/metrics/internal/storage"
+	"github.com/antarsoft/pullpicket/metrics/internal/storage"
 )
 
 const (

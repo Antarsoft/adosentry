@@ -11,7 +11,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/antarsoft/adosentry/metrics/internal/cosmostest"
+	"github.com/antarsoft/pullpicket/metrics/internal/cosmostest"
 )
 
 type fakeCredential struct{ scopes []string }

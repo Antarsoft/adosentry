@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/antarsoft/adosentry/metrics/internal/auth"
-	"github.com/antarsoft/adosentry/metrics/internal/storage"
+	"github.com/antarsoft/pullpicket/metrics/internal/auth"
+	"github.com/antarsoft/pullpicket/metrics/internal/storage"
 )
 
 // Config is everything main needs to start the service.

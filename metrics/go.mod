@@ -1,4 +1,4 @@
-module github.com/antarsoft/adosentry/metrics
+module github.com/antarsoft/pullpicket/metrics
 
 go 1.25.0
 

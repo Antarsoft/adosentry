@@ -19,7 +19,7 @@ import (
 
 const (
 	tenant   = "11111111-2222-3333-4444-555555555555"
-	audience = "api://adosentry-metrics"
+	audience = "api://pullpicket-metrics"
 	clientID = "6f1c0000-0000-0000-0000-000000000000"
 	kid      = "key-1"
 )

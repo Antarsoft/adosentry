@@ -694,7 +694,7 @@ function Get-MetricsRequestHeaders {
     Builds the credential header for POST /events on the metrics API.
     .DESCRIPTION
     'entra' asks Azure for an access token for the metrics API (its application ID URI, such as
-    api://adosentry-metrics) with the sign-in the pipeline task already made, and sends it as a
+    api://pullpicket-metrics) with the sign-in the pipeline task already made, and sends it as a
     bearer token; the service connection's identity needs the API's Events.Write app role.
     'key' sends the shared key as X-Api-Key. Pipeline variables that are not defined reach the
     script as their own $(name) text, so that counts as unset. A missing setting throws: the
@@ -717,7 +717,7 @@ function Get-MetricsRequestHeaders {
     }
 
     if (& $isUnset $Resource) {
-        throw "metricsAuth is 'entra' but aiMetricsApiResource (the metrics API's application ID URI, such as api://adosentry-metrics) is not set in the metrics variable group."
+        throw "metricsAuth is 'entra' but aiMetricsApiResource (the metrics API's application ID URI, such as api://pullpicket-metrics) is not set in the metrics variable group."
     }
     # Get-FoundryAccessToken works for any resource and registers the token as a pipeline secret.
     $token = Get-FoundryAccessToken -Resource $Resource

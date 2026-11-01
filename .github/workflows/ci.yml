@@ -1,4 +1,4 @@
-# CI for AdoSentry: PowerShell engine tests and analyzer, the Go metrics API, a secret scan and Bicep lint.
+# CI for PullPicket: PowerShell engine tests and analyzer, the Go metrics API, a secret scan and Bicep lint.
 # Every action is pinned by commit SHA (Dependabot keeps the pins current).
 name: CI
 
@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      IMAGE: adosentry-metrics:ci
+      IMAGE: pullpicket-metrics:ci
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -137,7 +137,7 @@ jobs:
             -e COSMOS_CONTAINER=ci \
             -e AUTH_MODE=entra \
             -e ENTRA_TENANT_ID=00000000-0000-0000-0000-000000000000 \
-            -e ENTRA_AUDIENCE=api://adosentry-metrics-ci \
+            -e ENTRA_AUDIENCE=api://pullpicket-metrics-ci \
             "$IMAGE"
           for _ in $(seq 1 15); do
             if curl -fsS http://localhost:8080/healthz; then

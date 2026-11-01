@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed (breaking)
 
+- The project is renamed from AdoSentry to PullPicket, because "Sentry" is a registered mark in developer tooling and the Visual Studio Marketplace asks for "Azure DevOps" in full rather than "ADO". Marketplace listings will be named "PullPicket for Azure DevOps". The Go module path is now `github.com/antarsoft/pullpicket/metrics`, the Bicep `namePrefix` and `application` tag default to `pullpicket`, and examples use `api://pullpicket-metrics` and `<project>/pullpicket`. Existing imports of the repository keep working under their own name; rename your copy and the `name:` in your pipeline's `resources.repositories` when you move to the new repository.
+
 - `foundryAuth` now defaults to `entra`: the review signs in to the model with the service connection's identity, which needs the Cognitive Services OpenAI User role. Set `foundryAuth: key` to keep using `foundry-key`; the key is now mapped into the step only in that mode.
 - `promptMode` now defaults to `rules`: `promptFile` is a short rules file and the engine adds its shared base prompt. Set `promptMode: legacy` if `promptFile` is a complete prompt.
 - The review stage now runs only for pull request builds (`Build.Reason` is `PullRequest`) and is skipped on CI, manual and scheduled runs.

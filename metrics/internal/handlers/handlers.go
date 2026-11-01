@@ -10,9 +10,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/antarsoft/adosentry/metrics/internal/pricing"
-	"github.com/antarsoft/adosentry/metrics/internal/storage"
-	"github.com/antarsoft/adosentry/metrics/internal/web"
+	"github.com/antarsoft/pullpicket/metrics/internal/pricing"
+	"github.com/antarsoft/pullpicket/metrics/internal/storage"
+	"github.com/antarsoft/pullpicket/metrics/internal/web"
 )
 
 // API holds what the handlers need.

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/antarsoft/adosentry/metrics/internal/auth"
+	"github.com/antarsoft/pullpicket/metrics/internal/auth"
 )
 
 func env(m map[string]string) func(string) string {
@@ -32,9 +32,9 @@ func TestLoad(t *testing.T) {
 	}
 
 	full["PORT"] = "9090"
-	full["PRICING_FILE"] = "/etc/adosentry/pricing.json"
+	full["PRICING_FILE"] = "/etc/pullpicket/pricing.json"
 	cfg, err = Load(env(full))
-	if err != nil || cfg.Port != "9090" || cfg.PricingFile != "/etc/adosentry/pricing.json" {
+	if err != nil || cfg.Port != "9090" || cfg.PricingFile != "/etc/pullpicket/pricing.json" {
 		t.Errorf("overrides: %+v, %v", cfg, err)
 	}
 }
@@ -137,12 +137,12 @@ func TestAuthSettings(t *testing.T) {
 		{name: "entra without audience", vars: map[string]string{"AUTH_MODE": "entra", "ENTRA_TENANT_ID": tenant}, wantErr: "ENTRA_AUDIENCE is required"},
 		{name: "entra", vars: map[string]string{
 			"AUTH_MODE": "entra", "ENTRA_TENANT_ID": tenant,
-			"ENTRA_AUDIENCE": "api://adosentry-metrics, 6f1c0000-0000-0000-0000-000000000000", "ENTRA_ALLOWED_PRINCIPALS": "oid-1,,oid-2",
+			"ENTRA_AUDIENCE": "api://pullpicket-metrics, 6f1c0000-0000-0000-0000-000000000000", "ENTRA_ALLOWED_PRINCIPALS": "oid-1,,oid-2",
 		}, check: func(t *testing.T, a auth.Config) {
 			if !a.Mode.Entra || a.Mode.Key || a.TenantID != tenant {
 				t.Errorf("auth = %+v", a)
 			}
-			if !slices.Equal(a.Audiences, []string{"api://adosentry-metrics", "6f1c0000-0000-0000-0000-000000000000"}) {
+			if !slices.Equal(a.Audiences, []string{"api://pullpicket-metrics", "6f1c0000-0000-0000-0000-000000000000"}) {
 				t.Errorf("audiences = %q", a.Audiences)
 			}
 			if !slices.Equal(a.AllowedPrincipals, []string{"oid-1", "oid-2"}) {

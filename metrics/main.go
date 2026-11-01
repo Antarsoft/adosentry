@@ -1,4 +1,4 @@
-// AdoSentry metrics API: a small, sender-agnostic ingestion and dashboard
+// PullPicket metrics API: a small, sender-agnostic ingestion and dashboard
 // service in front of Cosmos DB.
 //
 // Any sender (an Azure DevOps pipeline, a GitHub Action, a cron job, curl)
@@ -62,11 +62,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/antarsoft/adosentry/metrics/internal/auth"
-	"github.com/antarsoft/adosentry/metrics/internal/config"
-	"github.com/antarsoft/adosentry/metrics/internal/handlers"
-	"github.com/antarsoft/adosentry/metrics/internal/pricing"
-	"github.com/antarsoft/adosentry/metrics/internal/storage"
+	"github.com/antarsoft/pullpicket/metrics/internal/auth"
+	"github.com/antarsoft/pullpicket/metrics/internal/config"
+	"github.com/antarsoft/pullpicket/metrics/internal/handlers"
+	"github.com/antarsoft/pullpicket/metrics/internal/pricing"
+	"github.com/antarsoft/pullpicket/metrics/internal/storage"
 )
 
 // shutdownGrace is how long in-flight requests get after SIGTERM.

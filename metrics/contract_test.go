@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/antarsoft/adosentry/metrics/internal/auth"
-	"github.com/antarsoft/adosentry/metrics/internal/config"
-	"github.com/antarsoft/adosentry/metrics/internal/cosmostest"
-	"github.com/antarsoft/adosentry/metrics/internal/storage"
+	"github.com/antarsoft/pullpicket/metrics/internal/auth"
+	"github.com/antarsoft/pullpicket/metrics/internal/config"
+	"github.com/antarsoft/pullpicket/metrics/internal/cosmostest"
+	"github.com/antarsoft/pullpicket/metrics/internal/storage"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files in testdata/")
