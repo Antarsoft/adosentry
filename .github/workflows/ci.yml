@@ -1,4 +1,4 @@
-# CI for PullPicket: PowerShell engine tests and analyzer, the Go metrics API, a secret scan and Bicep lint.
+# CI for PullPicket: PowerShell engine tests and analyzer, the Go metrics API, a secret scan, DCO sign-off and Bicep lint.
 # Every action is pinned by commit SHA (Dependabot keeps the pins current).
 name: CI
 
@@ -194,6 +194,43 @@ jobs:
       - name: Scan full history
         run: |
           "$RUNNER_TEMP/gitleaks" git --redact --verbose --exit-code 1 .
+
+  dco:
+    name: DCO sign-off
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Every non-merge commit in the pull request needs a Signed-off-by line with its author's
+      # email (see CONTRIBUTING.md). Commits authored by the automation below are exempt: a
+      # maintainer reviews and merges them.
+      - name: Check every commit is signed off
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EXEMPT_AUTHORS: "49699333+dependabot[bot]@users.noreply.github.com noreply@anthropic.com"
+        run: |
+          status=0
+          for sha in $(git rev-list --no-merges "$BASE_SHA..$HEAD_SHA"); do
+            email="$(git show -s --format='%ae' "$sha")"
+            subject="$(git show -s --format='%s' "$sha")"
+            if [[ " $EXEMPT_AUTHORS " == *" $email "* ]]; then
+              echo "exempt  ${sha:0:12} $subject ($email)"
+              continue
+            fi
+            if git show -s --format='%(trailers:key=Signed-off-by,valueonly)' "$sha" | grep -qiF "<$email>"; then
+              echo "ok      ${sha:0:12} $subject"
+            else
+              echo "::error::Commit ${sha:0:12} ($subject) has no Signed-off-by line for $email. See CONTRIBUTING.md#developer-certificate-of-origin."
+              status=1
+            fi
+          done
+          exit "$status"
 
   bicep:
     name: Bicep (build + lint)

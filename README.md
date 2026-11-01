@@ -179,6 +179,8 @@ To connect a pipeline, create a variable group with `aiMetricsApiUrl` and `aiMet
 | `examples/` | An example PR pipeline and example rules files. |
 | `metrics/` | Optional metrics ingestion API and dashboard (Go, Cosmos DB). |
 | `infra/` | Bicep and Entra setup scripts for the metrics infrastructure. |
+| `docs/` | Parameter reference, troubleshooting and the metrics guide. |
+| `tools/` | Maintenance scripts, such as the parameter reference generator. |
 | `.github/` | GitHub Actions CI and Dependabot configuration. |
 | `.azuredevops/` | Azure Pipelines CI for the engine, for teams that host a copy in Azure Repos. |
 
@@ -188,10 +190,11 @@ Every push to `main` and `development` and every pull request runs [GitHub Actio
 
 | Job | What it checks |
 | --- | --- |
-| PowerShell | Pester 5.6.1 tests in `ai-code-review/tests`, and PSScriptAnalyzer 1.23.0 with zero findings allowed. |
+| PowerShell | Pester 5.6.1 tests in `ai-code-review/tests`, PSScriptAnalyzer 1.23.0 with zero findings allowed, and a check that [`docs/parameters.md`](docs/parameters.md) matches the template. |
 | Go | `gofmt`, `go vet`, `go test -race` and `go build` for `metrics/`. |
 | Docker | Builds the metrics image (no push), checks it does not run as root, smoke-tests `/healthz`, and checks an unauthenticated `POST /events` gets `401`. |
 | Secret scan | gitleaks over the full git history. |
+| DCO sign-off | On pull requests, every commit carries a `Signed-off-by` line (see [CONTRIBUTING.md](CONTRIBUTING.md#developer-certificate-of-origin)). |
 | Bicep | Builds and lints every file under `infra/` with a pinned Bicep CLI, and runs shellcheck on its scripts. |
 
 Actions are pinned by commit SHA, the workflow token is read-only, and Dependabot keeps actions, Go modules and the Docker base image current.
@@ -209,7 +212,7 @@ cd metrics
 gofmt -l . && go vet ./... && go test -race ./... && go build ./...
 ```
 
-<!-- TODO(X6): link CONTRIBUTING.md (local setup, checks, commit style). -->
+To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, the checks, commit style and the DCO sign-off.
 
 ## Security
 
