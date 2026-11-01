@@ -1,4 +1,4 @@
-module aimetrics
+module github.com/antarsoft/ado-ai-code-review/metrics
 
 go 1.25.0
 
