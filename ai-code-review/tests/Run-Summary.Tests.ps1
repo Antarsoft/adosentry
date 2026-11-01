@@ -142,7 +142,7 @@ Describe 'stage-template.yml' {
     }
 
     It 'builds the metrics credential with the engine and never pastes the key into the script (E4, M14)' {
-        $script:Yaml | Should -Match "Get-MetricsRequestHeaders \`\r?\n\s+-AuthMode '\`$\{\{ parameters\.metricsAuth \}\}'"
+        $script:Yaml | Should -Match ('Get-MetricsRequestHeaders `\s+-AuthMode ' + [regex]::Escape("'`${{ parameters.metricsAuth }}'"))
         $script:Yaml | Should -Match '-Headers \$metricsHeaders'
         $script:Yaml | Should -Not -Match "'X-Api-Key' = \`$env:AI_METRICS_API_KEY"
     }
