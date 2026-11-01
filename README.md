@@ -213,10 +213,9 @@ gofmt -l . && go vet ./... && go test -race ./... && go build ./...
 
 ## Security
 
-The model receives your base prompt and rules file, file paths and line numbers, the line-numbered diff, and the first part of the bot's own earlier comments on the pull request. Content in the diff is treated as untrusted and is never followed as an instruction.
+The model receives your base prompt and rules file, file paths and line numbers, the line-numbered diff with a few lines of context, the branch names, and the first 150 characters of the bot's own earlier comments on the pull request. Content in the diff is treated as untrusted and is never followed as an instruction, and the reviewer can only comment: it cannot approve, vote or change code.
 
-<!-- TODO(X4): link SECURITY.md (prompt-injection model, exactly what the model and the metrics service receive, credential handling, how to report a vulnerability). -->
-A full security policy, including how to report a vulnerability, will be published in `SECURITY.md`.
+[SECURITY.md](SECURITY.md) lists exactly what the model and the metrics service receive, how prompt injection and credentials are handled, a hardening checklist, and how to report a vulnerability privately.
 
 ## Licence
 
