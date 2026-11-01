@@ -3,8 +3,8 @@
 // It runs as the user-assigned identity from identity.bicep: that identity
 // pulls the image from ACR and signs in to Cosmos DB (key auth is disabled),
 // found by the app through AZURE_CLIENT_ID. POST /events is guarded by the
-// app itself (AUTH_MODE); the dashboard and /metrics/* are guarded by
-// Container Apps sign-in.
+// app itself (AUTH_MODE); everything else, including the dashboard and
+// /metrics/*, sits behind Container Apps sign-in with Entra (signIn below).
 
 @description('Azure region for the app.')
 param location string
@@ -55,6 +55,15 @@ param entraAllowedPrincipals string
 @secure()
 param metricsApiKey string
 
+@description('Client ID of the dashboard app registration (Container Apps sign-in), from setup-entra.sh.')
+@minLength(1)
+param dashboardClientId string
+
+@description('Client secret of the dashboard app registration, from setup-entra.sh.')
+@secure()
+@minLength(1)
+param dashboardClientSecret string
+
 @description('Minimum replicas. 0 scales to zero when idle (the first request after idle waits a few seconds).')
 @minValue(0)
 @maxValue(10)
@@ -70,14 +79,25 @@ param tags object
 
 var usesKey = contains(authMode, 'key')
 
-var keySecrets = usesKey
-  ? [
-      {
-        name: 'metrics-api-key'
-        value: metricsApiKey
-      }
-    ]
-  : []
+// Container Apps sign-in reads the dashboard app's client secret from this app secret.
+var signInSecretName = 'microsoft-provider-authentication-secret'
+
+var secrets = concat(
+  [
+    {
+      name: signInSecretName
+      value: dashboardClientSecret
+    }
+  ],
+  usesKey
+    ? [
+        {
+          name: 'metrics-api-key'
+          value: metricsApiKey
+        }
+      ]
+    : []
+)
 
 var baseEnv = [
   { name: 'COSMOS_ENDPOINT', value: cosmosEndpoint }
@@ -126,7 +146,7 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
           identity: identityId
         }
       ]
-      secrets: keySecrets
+      secrets: secrets
     }
     template: {
       containers: [
@@ -161,6 +181,41 @@ resource app 'Microsoft.App/containerApps@2025-01-01' = {
       scale: {
         minReplicas: minReplicas
         maxReplicas: maxReplicas
+      }
+    }
+  }
+}
+
+// Container Apps sign-in (Easy Auth) in front of everything except the two
+// paths pipelines call: POST /events checks its own credential (AUTH_MODE)
+// and /healthz is the probe. Who may sign in is decided in Entra: the
+// dashboard app requires assignment, so only assigned users or groups get in.
+resource signIn 'Microsoft.App/containerApps/authConfigs@2025-01-01' = {
+  parent: app
+  name: 'current'
+  properties: {
+    platform: {
+      enabled: true
+    }
+    globalValidation: {
+      unauthenticatedClientAction: 'RedirectToLoginPage'
+      redirectToProvider: 'azureactivedirectory'
+      excludedPaths: [
+        '/events'
+        '/healthz'
+      ]
+    }
+    httpSettings: {
+      requireHttps: true
+    }
+    identityProviders: {
+      azureActiveDirectory: {
+        enabled: true
+        registration: {
+          clientId: dashboardClientId
+          clientSecretSettingName: signInSecretName
+          openIdIssuer: '${environment().authentication.loginEndpoint}${entraTenantId}/v2.0'
+        }
       }
     }
   }

@@ -51,6 +51,13 @@ param entraAllowedPrincipals string = ''
 @secure()
 param metricsApiKey string = ''
 
+@description('Client ID of the dashboard app registration (Container Apps sign-in), from setup-entra.sh. Required once imageTag is set.')
+param dashboardClientId string = ''
+
+@description('Client secret of the dashboard app registration, from setup-entra.sh. Required once imageTag is set.')
+@secure()
+param dashboardClientSecret string = ''
+
 @description('Minimum replicas; 0 scales to zero when idle.')
 @minValue(0)
 @maxValue(10)
@@ -127,6 +134,8 @@ module app 'modules/containerapp.bicep' = if (!empty(imageTag)) {
     entraAudiences: filter([apiAppIdUri, apiClientId], audience => !empty(audience))
     entraAllowedPrincipals: entraAllowedPrincipals
     metricsApiKey: metricsApiKey
+    dashboardClientId: dashboardClientId
+    dashboardClientSecret: dashboardClientSecret
     minReplicas: minReplicas
     maxReplicas: maxReplicas
     tags: tags
