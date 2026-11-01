@@ -15,3 +15,11 @@ updates:
     groups:
       go-modules:
         patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /metrics
+    schedule:
+      interval: weekly
+    groups:
+      docker-images:
+        patterns: ["*"]

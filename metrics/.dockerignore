@@ -1,0 +1,6 @@
+# Only go.mod, go.sum, *.go and *.html are needed to build the image.
+*
+!go.mod
+!go.sum
+!*.go
+!*.html

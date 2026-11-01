@@ -104,6 +104,49 @@ jobs:
       - name: go build
         run: go build ./...
 
+  docker:
+    name: Docker image (metrics API, no push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      IMAGE: adosentry-metrics:ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build image
+        run: docker build --pull --tag "$IMAGE" metrics
+
+      - name: Check image runs as non-root
+        run: |
+          user="$(docker image inspect --format '{{.Config.User}}' "$IMAGE")"
+          echo "Image user: ${user:-<none>}"
+          case "$user" in
+            ""|root|0|0:*|root:*) echo "::error::Image must not run as root."; exit 1 ;;
+          esac
+
+      - name: Smoke test /healthz
+        run: |
+          # Dummy Cosmos settings: the client is created lazily, and /healthz never calls Cosmos.
+          docker run -d --name metrics-smoke -p 8080:8080 \
+            -e COSMOS_ENDPOINT=https://example.documents.azure.com:443/ \
+            -e COSMOS_KEY=ZHVtbXk= \
+            -e COSMOS_DATABASE=ci \
+            -e COSMOS_CONTAINER=ci \
+            "$IMAGE"
+          for _ in $(seq 1 15); do
+            if curl -fsS http://localhost:8080/healthz; then echo; exit 0; fi
+            sleep 1
+          done
+          echo "::error::/healthz did not answer within 15 seconds."
+          docker logs metrics-smoke
+          exit 1
+
+      - name: Stop container
+        if: ${{ always() }}
+        run: docker rm -f metrics-smoke || true
+
   secrets:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
