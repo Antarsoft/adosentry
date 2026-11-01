@@ -1,0 +1,268 @@
+{
+  "avgLatencyMs": 13300,
+  "byDay": [
+    {
+      "date": "D-5",
+      "prsReviewed": 1
+    },
+    {
+      "date": "D-4",
+      "prsReviewed": 0
+    },
+    {
+      "date": "D-3",
+      "prsReviewed": 0
+    },
+    {
+      "date": "D-2",
+      "prsReviewed": 1
+    },
+    {
+      "date": "D-1",
+      "prsReviewed": 0
+    },
+    {
+      "date": "D-0",
+      "prsReviewed": 1
+    }
+  ],
+  "byDayCost": [
+    {
+      "date": "D-5",
+      "estCostUsd": 0.09
+    },
+    {
+      "date": "D-4",
+      "estCostUsd": 0
+    },
+    {
+      "date": "D-3",
+      "estCostUsd": 0.105
+    },
+    {
+      "date": "D-2",
+      "estCostUsd": 0.1
+    },
+    {
+      "date": "D-1",
+      "estCostUsd": 0
+    },
+    {
+      "date": "D-0",
+      "estCostUsd": 0
+    }
+  ],
+  "byDayLatency": [
+    {
+      "date": "D-5",
+      "p50Ms": 1000,
+      "p95Ms": 1000
+    },
+    {
+      "date": "D-4",
+      "p50Ms": 0,
+      "p95Ms": 0
+    },
+    {
+      "date": "D-3",
+      "p50Ms": 31500,
+      "p95Ms": 57150
+    },
+    {
+      "date": "D-2",
+      "p50Ms": 2000,
+      "p95Ms": 2000
+    },
+    {
+      "date": "D-1",
+      "p50Ms": 0,
+      "p95Ms": 0
+    },
+    {
+      "date": "D-0",
+      "p50Ms": 0,
+      "p95Ms": 0
+    }
+  ],
+  "byEngineVersion": [
+    {
+      "engineVersion": "(unknown)",
+      "errors": 1,
+      "estCostUsd": 0.25,
+      "partial": 0,
+      "runs": 4
+    },
+    {
+      "engineVersion": "1.3.0",
+      "errors": 2,
+      "estCostUsd": 0.1,
+      "partial": 1,
+      "runs": 3
+    },
+    {
+      "engineVersion": "1.2.0",
+      "errors": 0,
+      "estCostUsd": 0.195,
+      "partial": 0,
+      "runs": 2
+    }
+  ],
+  "byErrorType": [
+    {
+      "count": 2,
+      "errorType": "timeout"
+    },
+    {
+      "count": 1,
+      "errorType": "unknown"
+    }
+  ],
+  "byModel": [
+    {
+      "avgLatencyMs": 0,
+      "errors": 1,
+      "estCostUsd": 0,
+      "model": "",
+      "runs": 3,
+      "totalTokens": 0
+    },
+    {
+      "avgLatencyMs": 750,
+      "errors": 1,
+      "estCostUsd": 0.33999999999999997,
+      "model": "gpt-5-mini",
+      "runs": 3,
+      "totalTokens": 150000
+    },
+    {
+      "avgLatencyMs": 3000,
+      "errors": 0,
+      "estCostUsd": 0.105,
+      "model": "gpt-5.4-mini",
+      "runs": 1,
+      "totalTokens": 90000
+    },
+    {
+      "avgLatencyMs": 2000,
+      "errors": 0,
+      "estCostUsd": 0.1,
+      "model": "gpt-5.6-luna",
+      "runs": 1,
+      "totalTokens": 250000
+    },
+    {
+      "avgLatencyMs": 60000,
+      "errors": 1,
+      "estCostUsd": 0,
+      "model": "unpriced-model",
+      "runs": 1,
+      "totalTokens": 5000
+    }
+  ],
+  "byRepository": [
+    {
+      "avgCommentsPerPR": 3,
+      "errors": 1,
+      "prsReviewed": 1,
+      "repository": "repo-a",
+      "reviewsWithComments": 1,
+      "reviewsWithoutComments": 1,
+      "totalComments": 3
+    },
+    {
+      "avgCommentsPerPR": 3,
+      "errors": 2,
+      "prsReviewed": 1,
+      "repository": "repo-b",
+      "reviewsWithComments": 2,
+      "reviewsWithoutComments": 0,
+      "totalComments": 3
+    },
+    {
+      "avgCommentsPerPR": 6.5,
+      "errors": 0,
+      "prsReviewed": 2,
+      "repository": "repo-c",
+      "reviewsWithComments": 2,
+      "reviewsWithoutComments": 0,
+      "totalComments": 13
+    }
+  ],
+  "dedupRate": 0.3333333333333333,
+  "errorRate": 0.3333333333333333,
+  "featureName": "ai-code-review",
+  "p95LatencyMs": 48599.99999999999,
+  "severityBreakdown": {
+    "critical": 1,
+    "suggestion": 0,
+    "unknown": 2,
+    "warning": 2
+  },
+  "topFiles": [
+    {
+      "comments": 2,
+      "file": "/src/a.go",
+      "repository": "repo-a"
+    },
+    {
+      "comments": 1,
+      "file": "/src/shared.go",
+      "repository": "repo-a"
+    },
+    {
+      "comments": 1,
+      "file": "/src/b.go",
+      "repository": "repo-b"
+    },
+    {
+      "comments": 1,
+      "file": "/src/shared.go",
+      "repository": "repo-b"
+    },
+    {
+      "comments": 1,
+      "file": "/many/00.go",
+      "repository": "repo-c"
+    },
+    {
+      "comments": 1,
+      "file": "/many/01.go",
+      "repository": "repo-c"
+    },
+    {
+      "comments": 1,
+      "file": "/many/02.go",
+      "repository": "repo-c"
+    },
+    {
+      "comments": 1,
+      "file": "/many/03.go",
+      "repository": "repo-c"
+    },
+    {
+      "comments": 1,
+      "file": "/many/04.go",
+      "repository": "repo-c"
+    },
+    {
+      "comments": 1,
+      "file": "/many/05.go",
+      "repository": "repo-c"
+    }
+  ],
+  "totalErrors": 3,
+  "totalEstCostUsd": 0.545,
+  "totalEvents": 9,
+  "totalPRsReviewed": 4,
+  "totalPartial": 1,
+  "totalReviewsWithComments": 5,
+  "totalReviewsWithoutComments": 1,
+  "totalTokens": {
+    "cached": 0,
+    "completion": 90000,
+    "prompt": 1405000,
+    "reasoning": 10000,
+    "total": 495000
+  },
+  "windowDays": 30
+}

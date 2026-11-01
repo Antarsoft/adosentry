@@ -134,18 +134,38 @@ func main() {
 	key := requireEnv("COSMOS_KEY")
 	dbName := requireEnv("COSMOS_DATABASE")
 	containerName := requireEnv("COSMOS_CONTAINER")
+	container, err := newContainerClient(endpoint, key, dbName, containerName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	handler := newHandler(container)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("ai-metrics-api listening on :%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, handler))
+}
+
+func newContainerClient(endpoint, key, dbName, containerName string) (*azcosmos.ContainerClient, error) {
 	cred, err := azcosmos.NewKeyCredential(key)
 	if err != nil {
-		log.Fatalf("invalid COSMOS_KEY: %v", err)
+		return nil, fmt.Errorf("invalid COSMOS_KEY: %w", err)
 	}
 	client, err := azcosmos.NewClientWithKey(endpoint, cred, nil)
 	if err != nil {
-		log.Fatalf("failed to create cosmos client: %v", err)
+		return nil, fmt.Errorf("failed to create cosmos client: %w", err)
 	}
 	container, err := client.NewContainer(dbName, containerName)
 	if err != nil {
-		log.Fatalf("failed to get container client: %v", err)
+		return nil, fmt.Errorf("failed to get container client: %w", err)
 	}
+	return container, nil
+}
+
+// newHandler wires every route; main and the characterisation tests share it.
+func newHandler(container *azcosmos.ContainerClient) http.Handler {
 	srv := &server{container: container}
 
 	mux := http.NewServeMux()
@@ -155,13 +175,7 @@ func main() {
 	mux.HandleFunc("/metrics/features", srv.handleFeatures)
 	mux.HandleFunc("/dashboard", srv.handleFeatureDashboard)
 	mux.HandleFunc("/", srv.handleIndex)
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	log.Printf("ai-metrics-api listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, withCORS(mux)))
+	return withCORS(mux)
 }
 
 func requireEnv(name string) string {
