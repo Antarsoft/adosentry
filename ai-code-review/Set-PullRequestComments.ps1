@@ -29,11 +29,7 @@ function Set-PullRequestComments {
 
         [parameter()]
         [array]
-        $ExistingThreads = @(),
-
-        [parameter()]
-        [switch]
-        $AutoApprove
+        $ExistingThreads = @()
     )
 
     $collectionUrl = Resolve-AdoCollectionUrl -CollectionUri $CollectionUri -Organization $Organization
@@ -49,9 +45,6 @@ function Set-PullRequestComments {
         Authorization  = "Bearer $token"
         "Content-Type" = "application/json"
     }
-
-    # Get current authenticated user from Azure DevOps (needed for AutoApprove's reviewerId)
-    $connectionData = Invoke-RestMethod -Uri "$collectionUrl/_apis/connectionData" -Headers $headers -Method Get
 
     # Existing threads now come from Get-ExistingReviewThreads.ps1 (called once, upstream,
     # and also handed to the LLM as prior-round history) instead of being re-fetched here.
@@ -189,32 +182,11 @@ function Set-PullRequestComments {
     if ($null -eq $reviewsObject.reviews -or $reviewsObject.reviews.Count -eq 0) {
         Write-Host "No reviews to post."
 
-        $autoApproved = $false
-        if ($AutoApprove) {
-            Write-Host "AutoApprove enabled: Approving pull request..." -ForegroundColor Cyan
-            $reviewerId = $connectionData.authenticatedUser.id
-            $approveUrl = "$collectionUrl/$Project/_apis/git/repositories/$RepositoryName/pullRequests/$PullRequestId/reviewers/$($reviewerId)?api-version=7.1"
-
-            $approveBody = @{
-                vote = 10
-            }
-
-            try {
-                $null = Invoke-RestMethod -Uri $approveUrl -Headers $headers -Method Put -Body ($approveBody | ConvertTo-Json -Depth 10)
-                Write-Host "Pull request approved successfully." -ForegroundColor Green
-                $autoApproved = $true
-            }
-            catch {
-                Write-Warning "Failed to approve pull request: $_"
-            }
-        }
-
         return [PSCustomObject]@{
             CommentsProposed         = 0
             CommentsPosted           = 0
             CommentsSkippedDuplicate = 0
-            Outcome                  = if ($autoApproved) { 'auto-approved' } else { 'no-comments' }
-            AutoApproved             = $autoApproved
+            Outcome                  = 'no-comments'
             SeverityBreakdown        = @{ critical = 0; warning = 0; suggestion = 0; unknown = 0 }
             FilesWithComments        = @()
         }
@@ -256,8 +228,7 @@ function Set-PullRequestComments {
             CommentsPosted           = 0
             CommentsSkippedDuplicate = $reviewsObject.reviews.Count
             Outcome                  = 'no-comments'
-            AutoApproved             = $false
-            SeverityBreakdown        = @{ critical = 0; warning = 0; suggestion = 0; unknown = 0 }
+                SeverityBreakdown        = @{ critical = 0; warning = 0; suggestion = 0; unknown = 0 }
             FilesWithComments        = @()
         }
     }
@@ -351,7 +322,6 @@ function Set-PullRequestComments {
         CommentsPosted           = $postedCount
         CommentsSkippedDuplicate = $skipped
         Outcome                  = if ($postedCount -gt 0) { 'commented' } else { 'no-comments' }
-        AutoApproved             = $false
         SeverityBreakdown        = $severityBreakdown
         FilesWithComments        = @($filesWithComments | Select-Object -Unique)
     }
