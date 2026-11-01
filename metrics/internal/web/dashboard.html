@@ -235,7 +235,7 @@
       <div class="table-wrap">
         <table id="filesTable">
           <thead>
-            <tr><th>Repository</th><th>File</th><th class="num">Comments</th></tr>
+            <tr><th>Repository</th><th>File</th><th class="num" title="Reviews that left at least one comment on this file">Reviews</th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -305,6 +305,10 @@ function cssVar(name) {
 
 function formatUSD(n) {
   const v = Number(n) || 0;
+  // A single review often costs less than a cent; two decimals would show it as $0.00.
+  if (v > 0 && v < 0.01) {
+    return v < 0.0001 ? '<$0.0001' : '$' + Number(v.toPrecision(2)).toString();
+  }
   return '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
