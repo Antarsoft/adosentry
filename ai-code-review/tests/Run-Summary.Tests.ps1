@@ -129,6 +129,21 @@ Describe 'stage-template.yml' {
         ([regex]::Matches($script:Yaml, "-CollectionUri '\$\(System\.CollectionUri\)'")).Count | Should -Be 2
     }
 
+    It 'defaults to Entra auth for the model (E1)' {
+        $script:Yaml | Should -Match '(?s)name: foundryAuth\s+type: string\s+default: "entra"'
+        $script:Yaml | Should -Match "-AuthMode '\$\{\{ parameters.foundryAuth \}\}'"
+    }
+
+    It 'maps the model key into the step only for key auth (E1)' {
+        $script:Yaml | Should -Match "(?m)^\s+\$\{\{ if eq\(parameters\.foundryAuth, 'key'\) \}\}:\r?\n\s+FOUNDRY_KEY: \$\(foundry-key\)"
+        ([regex]::Matches($script:Yaml, 'FOUNDRY_KEY:')).Count | Should -Be 1
+    }
+
+    It 'sends no metrics key header when aiMetricsApiKey is unset (E4)' {
+        $script:Yaml | Should -Match "\`$metricsKey -and -not \`$metricsKey\.StartsWith\('\`$\('\)"
+        $script:Yaml | Should -Not -Match "'X-Api-Key' = \`$env:AI_METRICS_API_KEY"
+    }
+
     It 'fails the run on a review error by default' {
         $script:Yaml | Should -Match '(?s)name: continueOnError\s+type: boolean\s+default: false'
     }

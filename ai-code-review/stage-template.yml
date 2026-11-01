@@ -14,7 +14,7 @@ parameters:
   # hold the Cognitive Services OpenAI User role on the model's Azure OpenAI / Foundry resource.
   - name: azureSubscription
     type: string
-  # Variable group with modelName, modelDeploymentUrl, reasoningEffort (and foundry-key for key auth).
+  # Variable group with modelName, modelDeploymentUrl, reasoningEffort (and foundry-key for foundryAuth: key).
   - name: modelVariableGroup
     type: string
     default: "ai-code-review"
@@ -51,14 +51,15 @@ parameters:
   - name: reviewDefaultExcludes
     type: boolean
     default: true
-  # 'key' uses the foundry-key variable. 'entra' signs in with the service connection's
-  # identity instead (it needs the Cognitive Services OpenAI User role on the Foundry account).
+  # 'entra' (default) signs in with the service connection's identity (it needs the Cognitive
+  # Services OpenAI User role on the Foundry account). 'key' uses the foundry-key variable from
+  # the model variable group instead; the key is only mapped into the step in that mode.
   - name: foundryAuth
     type: string
-    default: "key"
+    default: "entra"
     values:
-      - key
       - entra
+      - key
   - name: foundryTokenResource
     type: string
     default: "https://ai.azure.com"
@@ -232,9 +233,15 @@ stages:
                         if ($errorStatusCode) { $metricsEvent.custom.errorStatusCode = $errorStatusCode }
                     }
 
+                    # An unset aiMetricsApiKey reaches the script as the literal text '$(aiMetricsApiKey)'.
+                    # Send no key header then, rather than that text.
+                    $metricsHeaders = @{}
+                    $metricsKey = [string]$env:AI_METRICS_API_KEY
+                    if ($metricsKey -and -not $metricsKey.StartsWith('$(')) { $metricsHeaders['X-Api-Key'] = $metricsKey }
+
                     Invoke-RestMethod -Uri "$($metricsUrl.TrimEnd('/'))/events" `
                         -Method Post `
-                        -Headers @{ 'X-Api-Key' = $env:AI_METRICS_API_KEY } `
+                        -Headers $metricsHeaders `
                         -ContentType 'application/json' `
                         -Body ($metricsEvent | ConvertTo-Json -Depth 10) | Out-Null
                     Write-Host "AI Code Review metrics event sent."
@@ -248,6 +255,7 @@ stages:
                     throw $reviewFailure
                 }
             env:
-              FOUNDRY_KEY: $(foundry-key)
+              ${{ if eq(parameters.foundryAuth, 'key') }}:
+                FOUNDRY_KEY: $(foundry-key)
               AI_METRICS_API_URL: $(aiMetricsApiUrl)
               AI_METRICS_API_KEY: $(aiMetricsApiKey)
