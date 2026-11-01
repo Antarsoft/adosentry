@@ -223,3 +223,9 @@ jobs:
             echo "::endgroup::"
           done < <(find infra -type f \( -name '*.bicep' -o -name '*.bicepparam' \) -print0 | sort -z)
           exit "$status"
+
+      # The Entra setup scripts sit next to the Bicep; shellcheck ships on the runner image.
+      - name: Shellcheck infra/ scripts
+        run: |
+          shellcheck --version
+          find infra -type f -name '*.sh' -print0 | xargs -0 --no-run-if-empty shellcheck
