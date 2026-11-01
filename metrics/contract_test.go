@@ -27,7 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/antarsoft/adosentry/metrics/internal/config"
 	"github.com/antarsoft/adosentry/metrics/internal/cosmostest"
+	"github.com/antarsoft/adosentry/metrics/internal/storage"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files in testdata/")
@@ -38,11 +40,13 @@ const feature = "ai-code-review"
 func newTestAPI(t *testing.T) (*httptest.Server, *cosmostest.Server) {
 	t.Helper()
 	fake := cosmostest.New(t)
-	container, err := newContainerClient(fake.URL, "ZHVtbXk=", "db", "events")
+	handler, err := newHandler(config.Config{
+		Cosmos: storage.CosmosConfig{Endpoint: fake.URL, Key: "ZHVtbXk=", Database: "db", Container: "events"},
+	})
 	if err != nil {
-		t.Fatalf("container client: %v", err)
+		t.Fatalf("newHandler: %v", err)
 	}
-	api := httptest.NewServer(newHandler(container))
+	api := httptest.NewServer(handler)
 	t.Cleanup(api.Close)
 	return api, fake
 }

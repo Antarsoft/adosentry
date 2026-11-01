@@ -10,7 +10,8 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 
-COPY *.go *.html ./
+COPY *.go ./
+COPY internal ./internal
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -buildvcs=false -ldflags="-s -w" -o /out/ai-metrics-api .
 
 # distroless/static ships CA certificates and tzdata, with no shell or package manager.
