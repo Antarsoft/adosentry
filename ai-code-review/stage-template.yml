@@ -229,6 +229,7 @@ stages:
                             promptTokens             = if ($reviewResult) { $reviewResult.PromptTokens } else { 0 }
                             completionTokens         = if ($reviewResult) { $reviewResult.CompletionTokens } else { 0 }
                             reasoningTokens          = if ($reviewResult) { $reviewResult.ReasoningTokens } else { 0 }
+                            cachedTokens             = if ($reviewResult) { $reviewResult.CachedTokens } else { 0 }
                             tokensUsed               = if ($reviewResult) { $reviewResult.TotalTokens } else { 0 }
                             model                    = '$(modelName)'
                         }

@@ -258,7 +258,7 @@
   "totalReviewsWithComments": 5,
   "totalReviewsWithoutComments": 1,
   "totalTokens": {
-    "cached": 0,
+    "cached": 50000,
     "completion": 90000,
     "prompt": 1405000,
     "reasoning": 10000,

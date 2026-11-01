@@ -267,8 +267,8 @@ func TestAggregation(t *testing.T) {
 		{
 			name: "cost and tokens by model; an unknown model costs nothing",
 			rows: []storage.Row{
-				row(ts(2, 9), map[string]any{"model": "model-a", "promptTokens": 500_000.0, "completionTokens": 100_000.0, "reasoningTokens": 40_000.0, "tokensUsed": 600_000.0, "latencyMs": 10.0}),
-				row(ts(1, 9), map[string]any{"model": "model-a", "promptTokens": 500_000.0, "tokensUsed": 500_000.0, "latencyMs": 30.0}),
+				row(ts(2, 9), map[string]any{"model": "model-a", "promptTokens": 500_000.0, "completionTokens": 100_000.0, "reasoningTokens": 40_000.0, "cachedTokens": 200_000.0, "tokensUsed": 600_000.0, "latencyMs": 10.0}),
+				row(ts(1, 9), map[string]any{"model": "model-a", "promptTokens": 500_000.0, "cachedTokens": "50000", "tokensUsed": 500_000.0, "latencyMs": 30.0}),
 				row(ts(1, 10), map[string]any{"model": "model-unpriced", "promptTokens": 9e6, "completionTokens": 9e6, "tokensUsed": 18e6}),
 			},
 			check: func(t *testing.T, r *Response) {
@@ -276,7 +276,7 @@ func TestAggregation(t *testing.T) {
 				if !near(r.TotalEstCostUSD, 2) {
 					t.Errorf("total cost = %v, want 2", r.TotalEstCostUSD)
 				}
-				if r.TotalTokens != (tokenTotals{Prompt: 10e6, Completion: 9.1e6, Reasoning: 40_000, Total: 19.1e6}) {
+				if r.TotalTokens != (tokenTotals{Prompt: 10e6, Completion: 9.1e6, Reasoning: 40_000, Cached: 250_000, Total: 19.1e6}) {
 					t.Errorf("tokens = %+v", r.TotalTokens)
 				}
 				a, unpriced := r.ByModel[0], r.ByModel[1]
