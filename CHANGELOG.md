@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The metrics API builds with Go 1.27 (`go.mod` and the Docker builder image `golang:1.27-alpine`). Replaces Dependabot PR #5, which bumped only the Dockerfile.
 - The DCO sign-off CI job skips release pull requests into `main`. Their commits were already checked on their way into `development`, and the history includes commits from before sign-off was required.
 
+### Fixed
+
+- Dashboard: costs under one cent show as, for example, `$0.0023` instead of `$0.00`.
+- Dashboard: the "Most-commented files" count column is now labelled "Reviews". It counts reviews that commented on the file, not individual comments.
+
 ## [1.0.0] - 2026-11-01
 
 First release as PullPicket. The engine's `ModuleVersion` restarts at `1.0.0` (it was `7.0.0` under the old name). The dashboard's engine version table is unaffected: it shows the tag the pipeline checks the templates repository out at (such as `v1.0.0`), or the short commit when it points at a branch.

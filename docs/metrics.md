@@ -124,7 +124,7 @@ Pick a window (7, 14, 30 or 90 days, or all time) at the top. The page then show
 | Est. cost per day | Spend over time, from the [pricing file](#pricing-file). |
 | Latency per day (p50 vs p95) | Time spent waiting on the model per run. A rising p95 usually means bigger pull requests or throttling. |
 | Comment severity breakdown | `CRITICAL`, `WARNING` and `SUGGESTION` counts. Mostly suggestions can mean the rules file is too loose. |
-| Most-commented files | The files the reviewer flags most, per repository. |
+| Most-commented files | The files the reviewer flags most, per repository. The count is the number of reviews that left at least one comment on the file, not the number of comments. |
 | Errors by type | Failed runs by cause, such as `llm-api-error`, `input-too-large`, `truncated-response`, `content-filtered` or `post-failed`. See [troubleshooting](troubleshooting.md#other-errors). |
 | By engine version, By model | Runs, errors, latency, tokens and cost per PullPicket version and per model deployment, to compare a change before and after. |
 

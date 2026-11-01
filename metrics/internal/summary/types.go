@@ -55,7 +55,10 @@ type severityTotals struct {
 type fileHotspot struct {
 	Repository string `json:"repository"`
 	File       string `json:"file"`
-	Comments   int    `json:"comments"`
+	// Comments counts reviews (runs) that commented on the file, not individual
+	// comments: events carry filesWithComments, a per-run list of paths. The JSON
+	// name is kept for compatibility.
+	Comments int `json:"comments"`
 }
 
 // repoFileKey is the aggregation key for fileComments -- a struct key (not a
