@@ -144,6 +144,7 @@ The stage takes its settings as template parameters. The ones you are most likel
 | `foundryAuth` | `entra` (planned) | `entra` signs in with the service connection; `key` reads `foundry-key` from the variable group. |
 | `modelVariableGroup` | `ai-code-review` | Variable group with the model settings. |
 | `metricsVariableGroup` | empty | Variable group for the metrics API. Empty sends no metrics. |
+| `metricsAuth` | `entra` | `entra` sends a token for `aiMetricsApiResource` from the service connection; `key` sends `aiMetricsApiKey` as `X-Api-Key`. |
 | `reviewPathSpec` / `reviewExcludePathSpec` | empty | Limit the review to, or exclude, paths. |
 | `reviewDefaultExcludes` | `true` | Skip lockfiles, minified files, images, fonts, archives and binaries. |
 
@@ -165,7 +166,7 @@ Ways to keep costs down: leave `reviewDefaultExcludes` on, use `reviewPathSpec` 
 
 ## Metrics dashboard (optional)
 
-`metrics/` is a small Go service that stores one event per review run in Cosmos DB and serves a dashboard with runs, comments, severities, tokens and estimated cost over time. To use it, deploy the service, then create a variable group with `aiMetricsApiUrl` and pass its name as `metricsVariableGroup`. If the variable group is not set, the stage skips the metrics event.
+`metrics/` is a small Go service that stores one event per review run in Cosmos DB and serves a dashboard with runs, comments, severities, tokens and estimated cost over time. To use it, deploy the service, then create a variable group with `aiMetricsApiUrl` and the credential for `metricsAuth` (below), and pass its name as `metricsVariableGroup`. If the variable group is not set, the stage skips the metrics event.
 
 Cost estimates come from a pricing table keyed by `modelName`. If your deployment name is not in the table, the dashboard still records the run but shows its cost as $0. The built-in table is [`metrics/internal/pricing/pricing.json`](metrics/internal/pricing/pricing.json); to use your own rates, mount a file with the same shape and set `PRICING_FILE` to its path.
 
@@ -180,11 +181,20 @@ The service reads these environment variables:
 | `PRICING_FILE` | no | Path to a pricing file that replaces the built-in rates. |
 | `ALLOWED_ORIGINS` | no | Comma-separated browser origins allowed to call the API from another site. Empty means same-origin only. |
 | `PORT` | no | Listen port, default `8080`. |
+| `AUTH_MODE` | yes | How `POST /events` is authenticated: `entra`, `key`, `entra,key` (either), or `none` (local development only; logs a warning). There is no default. |
+| `ENTRA_TENANT_ID` | with `entra` | Tenant that issues the tokens. |
+| `ENTRA_AUDIENCE` | with `entra` | Comma-separated accepted audiences: the API app registration's application ID URI (`api://...`) and its client id. |
+| `ENTRA_ALLOWED_PRINCIPALS` | no | Object ids or client app ids allowed to write without the `Events.Write` app role. |
+| `METRICS_API_KEY` | with `key` | Shared key senders put in `X-Api-Key`, at least 32 characters (`openssl rand -base64 32`). In Azure, store it as a Container Apps secret or Key Vault reference. |
 
 Events may carry an optional `tenantId` (default `default`). Each tenant's events are stored and summarised separately; a single-team deployment can ignore it.
 
-<!-- TODO(M5-M7, M14): document the final ingest auth. Planned: Entra token with the Events.Write app role (preferred) or an X-Api-Key fallback, selected with AUTH_MODE; unauthenticated writes rejected by default. -->
-**Authentication (in progress).** Ingest will require a credential by default: an Entra access token carrying the `Events.Write` app role, or an API key as a fallback. The dashboard will require Entra sign-in. This section will be completed when that work lands.
+**Authentication.** `POST /events` requires a credential; the other endpoints are reads, and in Azure the dashboard and `/metrics/*` sit behind Container Apps sign-in.
+
+- **Entra (preferred).** The sender gets an access token for the API's application ID URI and sends it as `Authorization: Bearer <token>`. The token must carry the API's `Events.Write` app role (or come from a principal in `ENTRA_ALLOWED_PRINCIPALS`); without it the API answers `403`. In the pipeline, set `metricsAuth: entra` (the default), put the application ID URI in `aiMetricsApiResource` in the metrics variable group, and assign `Events.Write` to the service connection's identity.
+- **API key (fallback).** The sender sends `X-Api-Key: <key>`. In the pipeline, set `metricsAuth: key` and store the key as the secret variable `aiMetricsApiKey`.
+
+Missing or invalid credentials get `401`. [`metrics/scripts/send-event-curl.sh`](metrics/scripts/send-event-curl.sh) sends a test event with either credential.
 
 <!-- TODO(I1-I7, X5): link infra/README.md and docs/metrics.md once the full deployment (ACR, Container Apps, Entra setup script) is in place. -->
 **Deployment (in progress).** [`infra/`](infra) currently holds Bicep for the Cosmos DB store (serverless, key auth disabled). Container Registry, Container Apps, the Entra setup script and step-by-step deploy docs will follow.
@@ -208,7 +218,7 @@ Every push to `main` and `development` and every pull request runs [GitHub Actio
 | --- | --- |
 | PowerShell | Pester 5.6.1 tests in `ai-code-review/tests`, and PSScriptAnalyzer 1.23.0 with zero findings allowed. |
 | Go | `gofmt`, `go vet`, `go test -race` and `go build` for `metrics/`. |
-| Docker | Builds the metrics image (no push), checks it does not run as root, and smoke-tests `/healthz`. |
+| Docker | Builds the metrics image (no push), checks it does not run as root, smoke-tests `/healthz`, and checks an unauthenticated `POST /events` gets `401`. |
 | Secret scan | gitleaks over the full git history. |
 | Bicep | Builds and lints every file under `infra/` with a pinned Bicep CLI. |
 

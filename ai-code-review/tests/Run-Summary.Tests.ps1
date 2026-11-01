@@ -141,9 +141,20 @@ Describe 'stage-template.yml' {
         ([regex]::Matches($script:Yaml, 'FOUNDRY_KEY:')).Count | Should -Be 1
     }
 
-    It 'sends no metrics key header when aiMetricsApiKey is unset (E4)' {
-        $script:Yaml | Should -Match "\`$metricsKey -and -not \`$metricsKey\.StartsWith\('\`$\('\)"
+    It 'builds the metrics credential with the engine and never pastes the key into the script (E4, M14)' {
+        $script:Yaml | Should -Match "Get-MetricsRequestHeaders \`\r?\n\s+-AuthMode '\`$\{\{ parameters\.metricsAuth \}\}'"
+        $script:Yaml | Should -Match '-Headers \$metricsHeaders'
         $script:Yaml | Should -Not -Match "'X-Api-Key' = \`$env:AI_METRICS_API_KEY"
+    }
+
+    It 'defaults to Entra auth for the metrics API (M14)' {
+        $script:Yaml | Should -Match '(?s)name: metricsAuth\s+type: string\s+default: "entra"\s+values:\s+- entra\s+- key'
+    }
+
+    It 'maps only the metrics credential setting the chosen mode needs (M14)' {
+        $script:Yaml | Should -Match "(?m)^\s+\`$\{\{ if eq\(parameters\.metricsAuth, 'key'\) \}\}:\r?\n\s+AI_METRICS_API_KEY: \`$\(aiMetricsApiKey\)"
+        $script:Yaml | Should -Match "(?m)^\s+\`$\{\{ if eq\(parameters\.metricsAuth, 'entra'\) \}\}:\r?\n\s+AI_METRICS_API_RESOURCE: \`$\(aiMetricsApiResource\)"
+        ([regex]::Matches($script:Yaml, 'AI_METRICS_API_KEY:')).Count | Should -Be 1
     }
 
     It 'still offers the legacy prompt mode (E5)' {
@@ -190,7 +201,7 @@ Describe 'stage-template.yml quoting (E8)' {
     It 'keeps a quote in a parameter inside its string' {
         $values = @{
             promptFile = "rules/it's.rules.md"; reviewPathSpec = "src/o'brien/**"; reviewExcludePathSpec = "docs/'x'"
-            foundryTokenResource = 'https://ai.azure.com'; foundryAuth = 'entra'; promptMode = 'rules'
+            foundryTokenResource = 'https://ai.azure.com'; foundryAuth = 'entra'; metricsAuth = 'entra'; promptMode = 'rules'
             reviewMaxFilesPerBatch = '25'; reviewMaxBatchTokens = '300000'; reviewMaxFileTokens = '80000'
             reviewDeletedFiles = 'False'; reviewDefaultExcludes = 'True'
         }

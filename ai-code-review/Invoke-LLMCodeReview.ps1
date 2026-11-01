@@ -688,6 +688,42 @@ function Get-FoundryAccessToken {
     return $token
 }
 
+function Get-MetricsRequestHeaders {
+    <#
+    .SYNOPSIS
+    Builds the credential header for POST /events on the metrics API.
+    .DESCRIPTION
+    'entra' asks Azure for an access token for the metrics API (its application ID URI, such as
+    api://adosentry-metrics) with the sign-in the pipeline task already made, and sends it as a
+    bearer token; the service connection's identity needs the API's Events.Write app role.
+    'key' sends the shared key as X-Api-Key. Pipeline variables that are not defined reach the
+    script as their own $(name) text, so that counts as unset. A missing setting throws: the
+    caller sends no event rather than one the API will refuse.
+    #>
+    param(
+        [ValidateSet('entra', 'key')]
+        [string]$AuthMode = 'entra',
+        [string]$Resource = '',
+        [string]$Key = ''
+    )
+
+    $isUnset = { param([string]$Value) [string]::IsNullOrWhiteSpace($Value) -or $Value.StartsWith('$(') }
+
+    if ($AuthMode -eq 'key') {
+        if (& $isUnset $Key) {
+            throw "metricsAuth is 'key' but aiMetricsApiKey is not set in the metrics variable group."
+        }
+        return @{ 'X-Api-Key' = $Key }
+    }
+
+    if (& $isUnset $Resource) {
+        throw "metricsAuth is 'entra' but aiMetricsApiResource (the metrics API's application ID URI, such as api://adosentry-metrics) is not set in the metrics variable group."
+    }
+    # Get-FoundryAccessToken works for any resource and registers the token as a pipeline secret.
+    $token = Get-FoundryAccessToken -Resource $Resource
+    return @{ Authorization = "Bearer $token" }
+}
+
 function Invoke-LLMCodeReview {
     param (
         [parameter(Mandatory)]

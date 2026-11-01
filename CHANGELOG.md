@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The metrics API no longer sends `Access-Control-Allow-Origin: *`. By default it sends no CORS headers (the dashboard is same-origin and senders are not browsers); set `ALLOWED_ORIGINS` to a comma-separated list of exact origins to allow a dashboard hosted elsewhere.
 - `POST /events` rejects bodies over 64 KB with `413`.
+- `POST /events` requires a credential. The metrics service will not start without `AUTH_MODE`: `entra` (an Entra access token with the `Events.Write` app role, settings `ENTRA_TENANT_ID` and `ENTRA_AUDIENCE`), `key` (`X-Api-Key` matching `METRICS_API_KEY`, at least 32 characters), `entra,key` (either), or `none` for local development. Missing or invalid credentials get `401`, a token without the role gets `403`. Reads, pages and `/healthz` are unchanged.
+- The review stage authenticates to the metrics API with the new `metricsAuth` parameter, default `entra`: it gets a token for `aiMetricsApiResource` (the API's application ID URI, a new variable in the metrics variable group) with the service connection's identity. Set `metricsAuth: key` to keep sending `aiMetricsApiKey`; the key is now mapped into the step only in that mode.
+- `GET /metrics/summary` now fills `totalTokens.cached` with the sum of the events' `custom.cachedTokens` (it was always `0`), and the review stage sends `cachedTokens` (prompt tokens served from the model's cache, a subset of `promptTokens`). Cost estimates do not discount cached tokens yet.
 
 ### Removed
 

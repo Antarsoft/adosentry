@@ -20,5 +20,6 @@ Export-ModuleMember -Function @(
     'Set-PullRequestComments',
     'Format-ReviewSummary',
     'Get-ReviewErrorInfo',
+    'Get-MetricsRequestHeaders',
     'Get-EngineVersion'
 )

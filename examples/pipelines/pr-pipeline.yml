@@ -28,6 +28,7 @@ stages:
       promptMode: rules
       foundryAuth: entra
       modelVariableGroup: 'ai-code-review'
-      # metricsVariableGroup: 'ai-code-review-metrics'   # optional dashboard
+      # metricsVariableGroup: 'ai-code-review-metrics'   # optional dashboard: aiMetricsApiUrl + aiMetricsApiResource
+      # metricsAuth: entra                               # or 'key' with the secret aiMetricsApiKey in that group
       # reviewPathSpec: 'src/**/*.ts'                   # optional: only review these paths
       # reviewDeletedFiles: true

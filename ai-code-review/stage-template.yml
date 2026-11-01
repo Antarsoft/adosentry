@@ -18,10 +18,21 @@ parameters:
   - name: modelVariableGroup
     type: string
     default: "ai-code-review"
-  # Optional variable group with aiMetricsApiUrl and aiMetricsApiKey. Leave empty to send no metrics.
+  # Optional variable group for the metrics API. Leave empty to send no metrics. It holds
+  # aiMetricsApiUrl, plus aiMetricsApiResource (metricsAuth: entra) or aiMetricsApiKey (metricsAuth: key).
   - name: metricsVariableGroup
     type: string
     default: ""
+  # How the review proves itself to the metrics API (its AUTH_MODE). 'entra' (default) gets a token
+  # for aiMetricsApiResource, the API's application ID URI, with the service connection's identity,
+  # which needs the API's Events.Write app role. 'key' sends aiMetricsApiKey as X-Api-Key; the key is
+  # only mapped into the step in that mode.
+  - name: metricsAuth
+    type: string
+    default: "entra"
+    values:
+      - entra
+      - key
   - name: continueOnError
     type: boolean
     default: false
@@ -239,11 +250,10 @@ stages:
                         if ($errorStatusCode) { $metricsEvent.custom.errorStatusCode = $errorStatusCode }
                     }
 
-                    # An unset aiMetricsApiKey reaches the script as its own macro text. Send no key
-                    # header then, rather than that text.
-                    $metricsHeaders = @{}
-                    $metricsKey = [string]$env:AI_METRICS_API_KEY
-                    if ($metricsKey -and -not $metricsKey.StartsWith('$(')) { $metricsHeaders['X-Api-Key'] = $metricsKey }
+                    $metricsHeaders = Get-MetricsRequestHeaders `
+                        -AuthMode '${{ parameters.metricsAuth }}' `
+                        -Resource ([string]$env:AI_METRICS_API_RESOURCE) `
+                        -Key ([string]$env:AI_METRICS_API_KEY)
 
                     Invoke-RestMethod -Uri "$($metricsUrl.TrimEnd('/'))/events" `
                         -Method Post `
@@ -273,4 +283,7 @@ stages:
               ${{ if eq(parameters.foundryAuth, 'key') }}:
                 FOUNDRY_KEY: $(foundry-key)
               AI_METRICS_API_URL: $(aiMetricsApiUrl)
-              AI_METRICS_API_KEY: $(aiMetricsApiKey)
+              ${{ if eq(parameters.metricsAuth, 'key') }}:
+                AI_METRICS_API_KEY: $(aiMetricsApiKey)
+              ${{ if eq(parameters.metricsAuth, 'entra') }}:
+                AI_METRICS_API_RESOURCE: $(aiMetricsApiResource)
