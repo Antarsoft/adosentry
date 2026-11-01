@@ -150,7 +150,7 @@ The stage takes its settings as template parameters. The ones you are most likel
 
 Every parameter, with its type, default and allowed values, is in the [parameter reference](docs/parameters.md). It is generated from the comments in [`ai-code-review/stage-template.yml`](ai-code-review/stage-template.yml), and CI fails if the two drift apart.
 
-<!-- TODO(X3): link docs/troubleshooting.md (non-PR runs, identity not in the ADO org, missing OpenAI role, agent pool overriding variables, foundryTokenResource for classic Azure OpenAI). -->
+If the stage is skipped, posts nothing, or the model call fails, see [Troubleshooting](docs/troubleshooting.md).
 
 ## Cost notes
 
