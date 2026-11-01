@@ -62,7 +62,7 @@ Import AdoSentry into your Azure DevOps organisation (Repos > Import repository)
 
 ### 2. Deploy a model
 
-Create an Azure OpenAI or Azure AI Foundry resource and deploy a chat model. Note the deployment's chat completions URL (it ends in `/chat/completions?api-version=...`).
+Create an Azure OpenAI or Azure AI Foundry resource and deploy a chat model. Any chat model that supports structured output (`response_format` with a JSON schema) works; AdoSentry does not prescribe one. Note the deployment's chat completions URL (it ends in `/chat/completions?api-version=...`).
 
 ### 3. Create a service connection and grant it access
 
@@ -77,7 +77,7 @@ Create a variable group (default name `ai-code-review`) under Pipelines > Librar
 
 | Variable | Example | Notes |
 | --- | --- | --- |
-| `modelName` | `gpt-5-mini` | The model name sent in the request. |
+| `modelName` | `<your-deployment-name>` | Your model deployment's name, sent as `model` in each request and recorded in metrics. |
 | `modelDeploymentUrl` | `https://<resource>.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=<version>` | Full chat completions URL. |
 | `reasoningEffort` | `medium` | Optional. Leave empty for models that do not support it. |
 
@@ -166,6 +166,8 @@ Ways to keep costs down: leave `reviewDefaultExcludes` on, use `reviewPathSpec` 
 ## Metrics dashboard (optional)
 
 `metrics/` is a small Go service that stores one event per review run in Cosmos DB and serves a dashboard with runs, comments, severities, tokens and estimated cost over time. To use it, deploy the service, then create a variable group with `aiMetricsApiUrl` and pass its name as `metricsVariableGroup`. If the variable group is not set, the stage skips the metrics event.
+
+Cost estimates come from a pricing table keyed by `modelName`. If your deployment name is not in the table, the dashboard still records the run but shows its cost as $0.
 
 <!-- TODO(M5-M7, M14): document the final ingest auth. Planned: Entra token with the Events.Write app role (preferred) or an X-Api-Key fallback, selected with AUTH_MODE; unauthenticated writes rejected by default. -->
 **Authentication (in progress).** Ingest will require a credential by default: an Entra access token carrying the `Events.Write` app role, or an API key as a fallback. The dashboard will require Entra sign-in. This section will be completed when that work lands.
