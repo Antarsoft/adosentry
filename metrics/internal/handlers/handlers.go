@@ -25,6 +25,9 @@ type API struct {
 	Features []string
 	// Now is the clock; nil means time.Now.
 	Now func() time.Time
+	// WriteAuth wraps POST /events (see the auth package). nil refuses
+	// every write, so a service wired without auth is closed, not open.
+	WriteAuth func(http.Handler) http.Handler
 }
 
 // KnownFeatures is the default Features list. Adding a dashboard for a new
@@ -37,13 +40,24 @@ var KnownFeatures = []string{
 func (a *API) Routes() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", a.handleHealth)
-	mux.HandleFunc("/events", a.handleEvents)
+	mux.Handle("/events", a.writeAuth()(http.HandlerFunc(a.handleEvents)))
 	mux.HandleFunc("/metrics/summary", a.handleSummary)
 	mux.HandleFunc("/metrics/features", a.handleFeatures)
 	mux.HandleFunc("/dashboard", web.Page("dashboard.html"))
 	mux.Handle("/static/", web.Static())
 	mux.HandleFunc("/", a.handleIndex(web.Page("index.html")))
 	return mux
+}
+
+func (a *API) writeAuth() func(http.Handler) http.Handler {
+	if a.WriteAuth != nil {
+		return a.WriteAuth
+	}
+	return func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, `{"error":"authentication is not configured"}`, http.StatusServiceUnavailable)
+		})
+	}
 }
 
 func (a *API) now() time.Time {

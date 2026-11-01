@@ -1,8 +1,11 @@
 package config
 
 import (
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/antarsoft/adosentry/metrics/internal/auth"
 )
 
 func env(m map[string]string) func(string) string {
@@ -15,6 +18,7 @@ func TestLoad(t *testing.T) {
 		"COSMOS_KEY":       "a2V5",
 		"COSMOS_DATABASE":  "AIMetrics",
 		"COSMOS_CONTAINER": "Events",
+		"AUTH_MODE":        "none",
 	}
 	cfg, err := Load(env(full))
 	if err != nil {
@@ -55,7 +59,7 @@ func TestLoadMissing(t *testing.T) {
 }
 
 func TestAllowedOrigins(t *testing.T) {
-	base := map[string]string{"COSMOS_ENDPOINT": "e", "COSMOS_KEY": "k", "COSMOS_DATABASE": "d", "COSMOS_CONTAINER": "c"}
+	base := map[string]string{"COSMOS_ENDPOINT": "e", "COSMOS_KEY": "k", "COSMOS_DATABASE": "d", "COSMOS_CONTAINER": "c", "AUTH_MODE": "none"}
 	tests := []struct {
 		raw     string
 		want    []string
@@ -90,7 +94,7 @@ func TestAllowedOrigins(t *testing.T) {
 }
 
 func TestKeyIsOptional(t *testing.T) {
-	cfg, err := Load(env(map[string]string{"COSMOS_ENDPOINT": "e", "COSMOS_DATABASE": "d", "COSMOS_CONTAINER": "c"}))
+	cfg, err := Load(env(map[string]string{"COSMOS_ENDPOINT": "e", "COSMOS_DATABASE": "d", "COSMOS_CONTAINER": "c", "AUTH_MODE": "none"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,5 +104,75 @@ func TestKeyIsOptional(t *testing.T) {
 	cfg.Cosmos.Key = "a2V5"
 	if !strings.Contains(cfg.Cosmos.AuthMode(), "COSMOS_KEY") {
 		t.Errorf("auth mode with key = %q", cfg.Cosmos.AuthMode())
+	}
+}
+
+// TestAuthSettings: AUTH_MODE has no default, and each mode needs its own
+// settings before the service will start.
+func TestAuthSettings(t *testing.T) {
+	key := strings.Repeat("k", auth.MinKeyLength)
+	tenant := "11111111-2222-3333-4444-555555555555"
+	tests := []struct {
+		name    string
+		vars    map[string]string
+		wantErr string // substring; empty means no error
+		check   func(t *testing.T, a auth.Config)
+	}{
+		{name: "AUTH_MODE unset", vars: map[string]string{}, wantErr: "AUTH_MODE is required"},
+		{name: "unknown mode", vars: map[string]string{"AUTH_MODE": "basic"}, wantErr: "unknown value"},
+		{name: "none with key", vars: map[string]string{"AUTH_MODE": "none,key"}, wantErr: "cannot be combined"},
+		{name: "none", vars: map[string]string{"AUTH_MODE": " NONE "}, check: func(t *testing.T, a auth.Config) {
+			if !a.Mode.None || a.Mode.String() != "none" {
+				t.Errorf("mode = %+v", a.Mode)
+			}
+		}},
+		{name: "key without a key", vars: map[string]string{"AUTH_MODE": "key"}, wantErr: "METRICS_API_KEY is required"},
+		{name: "short key", vars: map[string]string{"AUTH_MODE": "key", "METRICS_API_KEY": "short"}, wantErr: "at least 32"},
+		{name: "key", vars: map[string]string{"AUTH_MODE": "key", "METRICS_API_KEY": key}, check: func(t *testing.T, a auth.Config) {
+			if !a.Mode.Key || a.Mode.Entra || a.APIKey != key {
+				t.Errorf("auth = %+v", a)
+			}
+		}},
+		{name: "entra without settings", vars: map[string]string{"AUTH_MODE": "entra"}, wantErr: "ENTRA_TENANT_ID is required"},
+		{name: "entra without audience", vars: map[string]string{"AUTH_MODE": "entra", "ENTRA_TENANT_ID": tenant}, wantErr: "ENTRA_AUDIENCE is required"},
+		{name: "entra", vars: map[string]string{
+			"AUTH_MODE": "entra", "ENTRA_TENANT_ID": tenant,
+			"ENTRA_AUDIENCE": "api://adosentry-metrics, 6f1c0000-0000-0000-0000-000000000000", "ENTRA_ALLOWED_PRINCIPALS": "oid-1,,oid-2",
+		}, check: func(t *testing.T, a auth.Config) {
+			if !a.Mode.Entra || a.Mode.Key || a.TenantID != tenant {
+				t.Errorf("auth = %+v", a)
+			}
+			if !slices.Equal(a.Audiences, []string{"api://adosentry-metrics", "6f1c0000-0000-0000-0000-000000000000"}) {
+				t.Errorf("audiences = %q", a.Audiences)
+			}
+			if !slices.Equal(a.AllowedPrincipals, []string{"oid-1", "oid-2"}) {
+				t.Errorf("principals = %q", a.AllowedPrincipals)
+			}
+		}},
+		{name: "both needs both", vars: map[string]string{"AUTH_MODE": "key,entra", "METRICS_API_KEY": key}, wantErr: "ENTRA_TENANT_ID"},
+		{name: "both", vars: map[string]string{"AUTH_MODE": "key,entra", "METRICS_API_KEY": key, "ENTRA_TENANT_ID": tenant, "ENTRA_AUDIENCE": "api://x"}, check: func(t *testing.T, a auth.Config) {
+			if a.Mode.String() != "entra,key" {
+				t.Errorf("mode = %q", a.Mode)
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vars := map[string]string{"COSMOS_ENDPOINT": "e", "COSMOS_DATABASE": "d", "COSMOS_CONTAINER": "c"}
+			for k, v := range tt.vars {
+				vars[k] = v
+			}
+			cfg, err := Load(env(vars))
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want one containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			tt.check(t, cfg.Auth)
+		})
 	}
 }

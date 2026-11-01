@@ -82,12 +82,14 @@ func (a *Aggregator) Add(row storage.Row) {
 	promptTokens := numberFromAny(custom["promptTokens"])
 	completionTokens := numberFromAny(custom["completionTokens"])
 	reasoningTokens := numberFromAny(custom["reasoningTokens"])
+	cachedTokens := numberFromAny(custom["cachedTokens"])
 	tokensUsed := numberFromAny(custom["tokensUsed"])
 	cost := a.prices.EstimateUSD(model, promptTokens, completionTokens)
 
 	a.tokens.Prompt += promptTokens
 	a.tokens.Completion += completionTokens
 	a.tokens.Reasoning += reasoningTokens
+	a.tokens.Cached += cachedTokens
 	a.tokens.Total += tokensUsed
 	a.totalCost += cost
 	if date != "" {

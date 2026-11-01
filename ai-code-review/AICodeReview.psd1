@@ -13,6 +13,7 @@
         'Set-PullRequestComments',
         'Format-ReviewSummary',
         'Get-ReviewErrorInfo',
+        'Get-MetricsRequestHeaders',
         'Get-EngineVersion'
     )
     CmdletsToExport      = @()

@@ -2,7 +2,7 @@ BeforeAll {
     $script:ManifestPath = Join-Path $PSScriptRoot '..' 'AICodeReview.psd1'
     $script:Public = @(
         'Format-ReviewSummary', 'Get-CodeChanges', 'Get-EngineVersion', 'Get-ExistingReviewThreads',
-        'Get-ReviewErrorInfo', 'Invoke-LLMCodeReview', 'Set-PullRequestComments'
+        'Get-MetricsRequestHeaders', 'Get-ReviewErrorInfo', 'Invoke-LLMCodeReview', 'Set-PullRequestComments'
     )
     Remove-Module AICodeReview -ErrorAction SilentlyContinue
     Import-Module $script:ManifestPath -Force
