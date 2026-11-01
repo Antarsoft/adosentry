@@ -101,7 +101,8 @@ Describe 'stage-template.yml' {
 
     It 'declares every parameter it uses' {
         $declared = [regex]::Matches($script:Yaml, '(?m)^  - name: (\w+)$') | ForEach-Object { $_.Groups[1].Value }
-        $used = [regex]::Matches($script:Yaml, '\$\{\{ parameters\.(\w+) \}\}') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
+        $used = [regex]::Matches($script:Yaml, '\$\{\{[^}]*\bparameters\.(\w+)') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
+        $used | Should -Contain 'promptFile'
         foreach ($name in $used) { $declared | Should -Contain $name }
     }
 
@@ -117,13 +118,111 @@ Describe 'stage-template.yml' {
         $script:Yaml | Should -Match 'batchesSplit'
     }
 
-    It 'defaults to the legacy prompt mode and passes the mode and base prompt to the engine (F-34)' {
-        $script:Yaml | Should -Match '(?s)name: promptMode\s+type: string\s+default: "legacy"'
+    It 'defaults to the rules prompt mode and passes the mode and base prompt to the engine (F-34, E5)' {
+        $script:Yaml | Should -Match '(?s)name: promptMode\s+type: string\s+default: "rules"'
         $script:Yaml | Should -Match "-PromptMode '\$\{\{ parameters.promptMode \}\}'"
         $script:Yaml | Should -Match 'templates/ai-code-review/prompts/base.codereviewprompt.md'
     }
 
+    It 'passes the collection URL so every Azure DevOps host works (E2)' {
+        $script:Yaml | Should -Not -Match 'dev\.azure\.com'
+        $script:Yaml | Should -Not -Match '-Organization '
+        ([regex]::Matches($script:Yaml, '-CollectionUri \$env:AICR_COLLECTION_URI')).Count | Should -Be 2
+        $script:Yaml | Should -Match '(?m)^\s+AICR_COLLECTION_URI: \$\(System\.CollectionUri\)$'
+    }
+
+    It 'defaults to Entra auth for the model (E1)' {
+        $script:Yaml | Should -Match '(?s)name: foundryAuth\s+type: string\s+default: "entra"'
+        $script:Yaml | Should -Match "-AuthMode '\$\{\{ parameters.foundryAuth \}\}'"
+    }
+
+    It 'maps the model key into the step only for key auth (E1)' {
+        $script:Yaml | Should -Match "(?m)^\s+\$\{\{ if eq\(parameters\.foundryAuth, 'key'\) \}\}:\r?\n\s+FOUNDRY_KEY: \$\(foundry-key\)"
+        ([regex]::Matches($script:Yaml, 'FOUNDRY_KEY:')).Count | Should -Be 1
+    }
+
+    It 'sends no metrics key header when aiMetricsApiKey is unset (E4)' {
+        $script:Yaml | Should -Match "\`$metricsKey -and -not \`$metricsKey\.StartsWith\('\`$\('\)"
+        $script:Yaml | Should -Not -Match "'X-Api-Key' = \`$env:AI_METRICS_API_KEY"
+    }
+
+    It 'still offers the legacy prompt mode (E5)' {
+        $script:Yaml | Should -Match '(?s)name: promptMode\s+type: string\s+default: "rules"\s+values:\s+- rules\s+- legacy'
+    }
+
+    It 'runs the stage only for pull request builds (E7)' {
+        $script:Yaml | Should -Match "(?m)^  - stage: AICodeReview\r?\n(?:    .*\r?\n)*?    condition: and\(succeeded\(\), eq\(variables\['Build\.Reason'\], 'PullRequest'\)\)"
+    }
+
     It 'fails the run on a review error by default' {
         $script:Yaml | Should -Match '(?s)name: continueOnError\s+type: boolean\s+default: false'
+    }
+}
+
+Describe 'stage-template.yml quoting (E8)' {
+    BeforeAll {
+        $script:Yaml = Get-Content -Raw (Join-Path $PSScriptRoot '..' 'stage-template.yml')
+        $script:Inline = [regex]::Match($script:Yaml, '(?s)Inline: \|\r?\n(.*?)\r?\n            env:').Groups[1].Value
+
+        # Expands the template expressions the way Azure Pipelines would for the given parameter
+        # values, so the result can be parsed as the PowerShell the agent runs.
+        function Expand-Inline([hashtable]$Values) {
+            $text = $script:Inline
+            foreach ($name in $Values.Keys) {
+                $text = $text.Replace("`${{ replace(parameters.$name, '''', '''''') }}", $Values[$name].Replace("'", "''"))
+                $text = $text.Replace("`${{ parameters.$name }}", $Values[$name])
+            }
+            $text
+        }
+    }
+
+    It 'finds the inline script' {
+        $script:Inline | Should -Match 'Invoke-LLMCodeReview'
+    }
+
+    It 'doubles single quotes in every free-text string parameter' -ForEach @(
+        @{ Name = 'promptFile' }, @{ Name = 'reviewPathSpec' }, @{ Name = 'reviewExcludePathSpec' }, @{ Name = 'foundryTokenResource' }
+    ) {
+        $script:Inline | Should -Not -Match "\$\{\{ parameters\.$Name \}\}"
+        $script:Inline | Should -Match ([regex]::Escape("`${{ replace(parameters.$Name, '''', '''''') }}"))
+    }
+
+    It 'keeps a quote in a parameter inside its string' {
+        $values = @{
+            promptFile = "rules/it's.rules.md"; reviewPathSpec = "src/o'brien/**"; reviewExcludePathSpec = "docs/'x'"
+            foundryTokenResource = 'https://ai.azure.com'; foundryAuth = 'entra'; promptMode = 'rules'
+            reviewMaxFilesPerBatch = '25'; reviewMaxBatchTokens = '300000'; reviewMaxFileTokens = '80000'
+            reviewDeletedFiles = 'False'; reviewDefaultExcludes = 'True'
+        }
+        $expanded = Expand-Inline $values
+        $tokens = $null; $errors = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($expanded, [ref]$tokens, [ref]$errors)
+        $errors | Should -BeNullOrEmpty
+        $call = $ast.Find({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Invoke-LLMCodeReview' }, $true)
+        $elements = @($call.CommandElements)
+        $argumentFor = {
+            param($parameter)
+            for ($i = 0; $i -lt $elements.Count; $i++) {
+                if ($elements[$i] -is [System.Management.Automation.Language.CommandParameterAst] -and $elements[$i].ParameterName -eq $parameter) {
+                    return $elements[$i + 1].SafeGetValue()
+                }
+            }
+        }
+        & $argumentFor 'PathToReviewFile' | Should -Be '$(Build.SourcesDirectory)/rules/it''s.rules.md'
+        & $argumentFor 'PathSpec' | Should -Be "src/o'brien/**"
+        & $argumentFor 'ExcludePathSpec' | Should -Be "docs/'x' rules/it's.rules.md"
+    }
+
+    It 'passes pull request and repository names through the environment, not the script text' -ForEach @(
+        @{ Macro = 'System.PullRequest.SourceBranch' }, @{ Macro = 'System.PullRequest.TargetBranch' }
+        @{ Macro = 'System.PullRequest.PullRequestId' }, @{ Macro = 'System.TeamProject' }
+        @{ Macro = 'Build.Repository.Name' }, @{ Macro = 'System.CollectionUri' }
+    ) {
+        $script:Inline | Should -Not -Match ([regex]::Escape("`$($Macro)"))
+        $script:Yaml | Should -Match "(?m)^              AICR_\w+: $([regex]::Escape("`$($Macro)"))\r?$"
+    }
+
+    It 'does not expand a secret macro anywhere in the inline script' {
+        $script:Inline | Should -Not -Match '\$\((foundry-key|aiMetricsApiKey)\)'
     }
 }

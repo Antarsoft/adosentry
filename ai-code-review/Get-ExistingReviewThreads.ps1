@@ -1,8 +1,14 @@
 function Get-ExistingReviewThreads {
     param (
-        [parameter(Mandatory)]
+        # The pipeline's $(System.CollectionUri). Works for dev.azure.com, *.visualstudio.com and
+        # Azure DevOps Server. Organization is the fallback when only the name is known.
+        [parameter()]
         [string]
-        $Organization,
+        $CollectionUri = '',
+
+        [parameter()]
+        [string]
+        $Organization = '',
 
         [parameter(Mandatory)]
         [int]
@@ -16,6 +22,8 @@ function Get-ExistingReviewThreads {
         [string]
         $Project
     )
+
+    $collectionUrl = Resolve-AdoCollectionUrl -CollectionUri $CollectionUri -Organization $Organization
 
     # A transient failure acquiring the token, or fetching either connectionData or the
     # thread list, should degrade this review round to "no history" rather than aborting
@@ -44,7 +52,7 @@ function Get-ExistingReviewThreads {
     }
 
     try {
-        $connectionData = Invoke-RestMethod -Uri "https://dev.azure.com/$Organization/_apis/connectionData" -Headers $headers -Method Get
+        $connectionData = Invoke-RestMethod -Uri "$collectionUrl/_apis/connectionData" -Headers $headers -Method Get
     }
     catch {
         Write-Warning "Failed to retrieve connection data, continuing without review history: $_"
@@ -57,7 +65,7 @@ function Get-ExistingReviewThreads {
     $currentUserName = $connectionData.authenticatedUser.providerDisplayName
     $currentUserId = $connectionData.authenticatedUser.id
 
-    $getThreadsUrl = "https://dev.azure.com/$Organization/$Project/_apis/git/repositories/$RepositoryName/pullRequests/$PullRequestId/threads?api-version=7.1"
+    $getThreadsUrl = "$collectionUrl/$Project/_apis/git/repositories/$RepositoryName/pullRequests/$PullRequestId/threads?api-version=7.1"
 
     try {
         $existingThreads = Invoke-RestMethod -Uri $getThreadsUrl -Headers $headers -Method Get

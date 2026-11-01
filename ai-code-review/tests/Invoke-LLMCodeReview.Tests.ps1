@@ -555,6 +555,12 @@ Describe 'Invoke-LLMCodeReview' {
             { Invoke-LLMCodeReview -SourceBranch s -TargetBranch t -PathToReviewFile $script:PromptFile -ModelName m `
                 -ModelDeploymentUrl u 6>$null } | Should -Throw '*No model API key*'
         }
+
+        It 'treats an unset foundry-key macro as no key (E4)' {
+            Mock Invoke-SingleLLMCodeReviewBatch { throw 'should not be called' }
+            { Invoke-LLMCodeReview -SourceBranch s -TargetBranch t -PathToReviewFile $script:PromptFile -ModelName m `
+                -ModelDeploymentUrl u -Key '$(foundry-key)' -AuthMode key 6>$null } | Should -Throw '*No model API key*'
+        }
     }
 
     Describe 'prompt mode and structured severity (F-34)' {

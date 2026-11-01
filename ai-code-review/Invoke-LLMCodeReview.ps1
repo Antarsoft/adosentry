@@ -765,11 +765,15 @@ function Invoke-LLMCodeReview {
         $MaxFileTokens = 80000
     )
 
+    # An unset foundry-key variable reaches the script as the literal text '$(foundry-key)'.
+    # Treat it as no key, so the run fails with a clear message instead of sending that text.
+    if ($Key.StartsWith('$(')) { $Key = '' }
+
     if ($AuthMode -eq 'entra') {
         Write-Host "Authenticating to the model with an Entra token for $TokenResource."
         $Key = Get-FoundryAccessToken -Resource $TokenResource
     } elseif ([string]::IsNullOrWhiteSpace($Key)) {
-        throw 'No model API key was provided and AuthMode is not entra.'
+        throw 'No model API key was provided and AuthMode is not entra. Set foundry-key in the model variable group, or use foundryAuth: entra.'
     }
 
     $schema = @{
