@@ -1,4 +1,5 @@
 BeforeAll {
+    . (Join-Path $PSScriptRoot '..' 'Resolve-AdoCollectionUrl.ps1')
     . (Join-Path $PSScriptRoot '..' 'Set-PullRequestComments.ps1')
     function Get-AzAccessToken { param($ResourceUrl, [switch]$AsSecureString) [PSCustomObject]@{ token = (ConvertTo-SecureString 'x' -AsPlainText -Force) } }
     $script:Posted = @()

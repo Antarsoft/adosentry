@@ -110,7 +110,7 @@ stages:
 
                 try {
                     $existingThreadData = Get-ExistingReviewThreads `
-                      -Organization ("$(System.CollectionUri)" -split "/" | Select-Object -index 3) `
+                      -CollectionUri '$(System.CollectionUri)' `
                       -PullRequestId $(System.PullRequest.PullRequestId) `
                       -Project $(System.TeamProject) `
                       -RepositoryName $(Build.Repository.Name)
@@ -140,7 +140,7 @@ stages:
 
                     $phase = 'post'
                     $postResult = Set-PullRequestComments `
-                      -Organization ("$(System.CollectionUri)" -split "/" | Select-Object -index 3) `
+                      -CollectionUri '$(System.CollectionUri)' `
                       -PullRequestId $(System.PullRequest.PullRequestId) `
                       -Project $(System.TeamProject) `
                       -RepositoryName $(Build.Repository.Name) `

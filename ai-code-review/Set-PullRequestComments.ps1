@@ -1,9 +1,15 @@
 function Set-PullRequestComments {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'ExistingThreads', Justification = 'Used inside nested helper script blocks, which the rule does not follow.')]
     param (
-        [parameter(Mandatory)]
+        # The pipeline's $(System.CollectionUri). Works for dev.azure.com, *.visualstudio.com and
+        # Azure DevOps Server. Organization is the fallback when only the name is known.
+        [parameter()]
         [string]
-        $Organization,
+        $CollectionUri = '',
+
+        [parameter()]
+        [string]
+        $Organization = '',
 
         [parameter(Mandatory)]
         [int]
@@ -30,6 +36,8 @@ function Set-PullRequestComments {
         $AutoApprove
     )
 
+    $collectionUrl = Resolve-AdoCollectionUrl -CollectionUri $CollectionUri -Organization $Organization
+
     # Do NOT simplify to (Get-AzAccessToken -ResourceUrl "...").Token -- on this environment's
     # Az.Accounts version, .Token returns a SecureString, not a plain string. Interpolating that
     # into "Bearer $token" silently stringifies to the literal text "System.Security.SecureString"
@@ -43,7 +51,7 @@ function Set-PullRequestComments {
     }
 
     # Get current authenticated user from Azure DevOps (needed for AutoApprove's reviewerId)
-    $connectionData = Invoke-RestMethod -Uri "https://dev.azure.com/$Organization/_apis/connectionData" -Headers $headers -Method Get
+    $connectionData = Invoke-RestMethod -Uri "$collectionUrl/_apis/connectionData" -Headers $headers -Method Get
 
     # Existing threads now come from Get-ExistingReviewThreads.ps1 (called once, upstream,
     # and also handed to the LLM as prior-round history) instead of being re-fetched here.
@@ -185,7 +193,7 @@ function Set-PullRequestComments {
         if ($AutoApprove) {
             Write-Host "AutoApprove enabled: Approving pull request..." -ForegroundColor Cyan
             $reviewerId = $connectionData.authenticatedUser.id
-            $approveUrl = "https://dev.azure.com/$Organization/$Project/_apis/git/repositories/$RepositoryName/pullRequests/$PullRequestId/reviewers/$($reviewerId)?api-version=7.1"
+            $approveUrl = "$collectionUrl/$Project/_apis/git/repositories/$RepositoryName/pullRequests/$PullRequestId/reviewers/$($reviewerId)?api-version=7.1"
 
             $approveBody = @{
                 vote = 10
@@ -260,7 +268,7 @@ function Set-PullRequestComments {
     }
 
     # Post new reviews
-    $createThreadUrl = "https://dev.azure.com/$Organization/$Project/_apis/git/repositories/$RepositoryName/pullRequests/$PullRequestId/threads?api-version=7.1"
+    $createThreadUrl = "$collectionUrl/$Project/_apis/git/repositories/$RepositoryName/pullRequests/$PullRequestId/threads?api-version=7.1"
 
     $postedCount = 0
     $severityBreakdown = @{ critical = 0; warning = 0; suggestion = 0; unknown = 0 }

@@ -123,6 +123,12 @@ Describe 'stage-template.yml' {
         $script:Yaml | Should -Match 'templates/ai-code-review/prompts/base.codereviewprompt.md'
     }
 
+    It 'passes the collection URL so every Azure DevOps host works (E2)' {
+        $script:Yaml | Should -Not -Match 'dev\.azure\.com'
+        $script:Yaml | Should -Not -Match '-Organization '
+        ([regex]::Matches($script:Yaml, "-CollectionUri '\$\(System\.CollectionUri\)'")).Count | Should -Be 2
+    }
+
     It 'fails the run on a review error by default' {
         $script:Yaml | Should -Match '(?s)name: continueOnError\s+type: boolean\s+default: false'
     }

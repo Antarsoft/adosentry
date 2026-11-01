@@ -16,8 +16,14 @@
 .PARAMETER RepositoryNames
     One or more Azure DevOps repository names to scan.
 
+.PARAMETER CollectionUri
+    Azure DevOps collection URL, for example https://dev.azure.com/my-org/,
+    https://my-org.visualstudio.com/ or https://my-server/tfs/DefaultCollection/
+    for Azure DevOps Server. Use this or Organization.
+
 .PARAMETER Organization
-    Azure DevOps organization name.
+    Azure DevOps organization name on dev.azure.com. Used when CollectionUri
+    is not given.
 
 .PARAMETER Project
     Azure DevOps project name.
@@ -56,9 +62,11 @@ param(
     [string[]]
     $RepositoryNames,
 
-    [parameter(Mandatory)]
     [string]
-    $Organization,
+    $CollectionUri = '',
+
+    [string]
+    $Organization = '',
 
     [parameter(Mandatory)]
     [string]
@@ -75,6 +83,9 @@ param(
     $BotDisplayName
 )
 
+. (Join-Path $PSScriptRoot 'Resolve-AdoCollectionUrl.ps1')
+$collectionUrl = Resolve-AdoCollectionUrl -CollectionUri $CollectionUri -Organization $Organization
+
 $token = (New-Object System.Management.Automation.PSCredential(
     "token", (Get-AzAccessToken -ResourceUrl "499b84ac-1321-427f-aa17-267ca6975798" -AsSecureString).token
 )).GetNetworkCredential().Password
@@ -85,12 +96,12 @@ Write-Host "Looking for review comments from: $BotDisplayName"
 $results = foreach ($repo in $RepositoryNames) {
     Write-Host "Scanning $repo since $($Since.ToString('yyyy-MM-dd'))..."
 
-    $prsUrl = "https://dev.azure.com/$Organization/$Project/_apis/git/repositories/$repo/pullrequests" +
+    $prsUrl = "$collectionUrl/$Project/_apis/git/repositories/$repo/pullrequests" +
               "?searchCriteria.status=completed&searchCriteria.minTime=$($Since.ToString('o'))&api-version=7.1"
     $prs = (Invoke-RestMethod -Uri $prsUrl -Headers $headers).value
 
     foreach ($pr in $prs) {
-        $threadsUrl = "https://dev.azure.com/$Organization/$Project/_apis/git/repositories/$repo/pullRequests/$($pr.pullRequestId)/threads?api-version=7.1"
+        $threadsUrl = "$collectionUrl/$Project/_apis/git/repositories/$repo/pullRequests/$($pr.pullRequestId)/threads?api-version=7.1"
         $threads = (Invoke-RestMethod -Uri $threadsUrl -Headers $headers).value
 
         foreach ($thread in $threads) {
