@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/antarsoft/adosentry/metrics/internal/auth"
 	"github.com/antarsoft/adosentry/metrics/internal/config"
 	"github.com/antarsoft/adosentry/metrics/internal/cosmostest"
 	"github.com/antarsoft/adosentry/metrics/internal/storage"
@@ -48,6 +49,9 @@ func newTestAPIWith(t *testing.T, adjust func(*config.Config)) (*httptest.Server
 	fake := cosmostest.New(t)
 	cfg := config.Config{
 		Cosmos: storage.CosmosConfig{Endpoint: fake.URL, Key: "ZHVtbXk=", Database: "db", Container: "events"},
+		// The contract tests are about the API, not auth; TestEventsAuth
+		// covers the wiring and the auth package covers the rest.
+		Auth: auth.Config{Mode: auth.Mode{None: true}},
 	}
 	if adjust != nil {
 		adjust(&cfg)
@@ -579,4 +583,40 @@ func TestTenants(t *testing.T) {
 			t.Errorf("tenant %q: query partition %q, @tenant %v", tenant, q.PartitionKey, q.Parameters["@tenant"])
 		}
 	}
+}
+
+// TestEventsAuth: auth guards POST /events and nothing else, and a service
+// with no auth configured refuses writes instead of accepting them.
+func TestEventsAuth(t *testing.T) {
+	key := strings.Repeat("s", auth.MinKeyLength)
+	api, _ := newTestAPIWith(t, func(c *config.Config) {
+		c.Auth = auth.Config{Mode: auth.Mode{Key: true}, APIKey: key}
+	})
+	post := func(apiKey string) response {
+		t.Helper()
+		req, _ := http.NewRequest(http.MethodPost, api.URL+"/events", strings.NewReader(`{"featureName":"`+feature+`"}`))
+		req.Header.Set("Content-Type", "application/json")
+		if apiKey != "" {
+			req.Header.Set("X-Api-Key", apiKey)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		return response{status: resp.StatusCode, header: resp.Header, body: string(b)}
+	}
+	expect(t, post(""), http.StatusUnauthorized, "{\"error\":\"credentials required: send an API key (X-Api-Key)\"}\n")
+	expect(t, post(strings.Repeat("x", auth.MinKeyLength)), http.StatusUnauthorized, "{\"error\":\"invalid credentials\"}\n")
+	expect(t, post(key), http.StatusCreated, "")
+
+	// Reads, pages and the probe stay open (the dashboard is protected by
+	// Container Apps sign-in, not by this service).
+	expect(t, do(t, http.MethodGet, api.URL+"/healthz", ""), http.StatusOK, "ok")
+	expect(t, do(t, http.MethodGet, api.URL+"/metrics/features", ""), http.StatusOK, "")
+	expect(t, do(t, http.MethodGet, api.URL+"/metrics/summary?feature="+feature, ""), http.StatusOK, "")
+
+	closed, _ := newTestAPIWith(t, func(c *config.Config) { c.Auth = auth.Config{} })
+	expect(t, do(t, http.MethodPost, closed.URL+"/events", `{"featureName":"`+feature+`"}`), http.StatusServiceUnavailable, "")
 }

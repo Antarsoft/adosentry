@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/antarsoft/adosentry/metrics/internal/auth"
 	"github.com/antarsoft/adosentry/metrics/internal/storage"
 )
 
@@ -18,6 +19,8 @@ type Config struct {
 	// AllowedOrigins are the browser origins allowed to call the API
 	// cross-site (CORS). Empty means same-origin only.
 	AllowedOrigins []string
+	// Auth guards POST /events.
+	Auth auth.Config
 }
 
 // Load reads the settings through getenv (os.Getenv in production). It
@@ -52,7 +55,33 @@ func Load(getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	cfg.AllowedOrigins = origins
+
+	mode, err := auth.ParseMode(getenv("AUTH_MODE"))
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Auth = auth.Config{
+		Mode:              mode,
+		TenantID:          strings.TrimSpace(getenv("ENTRA_TENANT_ID")),
+		Audiences:         splitList(getenv("ENTRA_AUDIENCE")),
+		AllowedPrincipals: splitList(getenv("ENTRA_ALLOWED_PRINCIPALS")),
+		APIKey:            getenv("METRICS_API_KEY"),
+	}
+	if err := cfg.Auth.Validate(); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+// splitList reads a comma-separated list, dropping blanks.
+func splitList(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if v := strings.TrimSpace(part); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // parseOrigins reads a comma-separated list such as

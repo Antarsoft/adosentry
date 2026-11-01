@@ -130,13 +130,29 @@ jobs:
         run: |
           # Dummy Cosmos settings: the client is created lazily, and /healthz never calls Cosmos.
           # No COSMOS_KEY, so the image starts in its production mode (Entra ID / managed identity).
+          # AUTH_MODE=entra with a dummy tenant: signing keys are fetched on the first token, not at startup.
           docker run -d --name metrics-smoke -p 8080:8080 \
             -e COSMOS_ENDPOINT=https://example.documents.azure.com:443/ \
             -e COSMOS_DATABASE=ci \
             -e COSMOS_CONTAINER=ci \
+            -e AUTH_MODE=entra \
+            -e ENTRA_TENANT_ID=00000000-0000-0000-0000-000000000000 \
+            -e ENTRA_AUDIENCE=api://adosentry-metrics-ci \
             "$IMAGE"
           for _ in $(seq 1 15); do
-            if curl -fsS http://localhost:8080/healthz; then echo; exit 0; fi
+            if curl -fsS http://localhost:8080/healthz; then
+              echo
+              # An unauthenticated write must be refused before it reaches Cosmos.
+              status="$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+                -d '{"featureName":"ci"}' http://localhost:8080/events)"
+              if [ "$status" != "401" ]; then
+                echo "::error::POST /events without credentials returned $status, want 401."
+                docker logs metrics-smoke
+                exit 1
+              fi
+              echo "POST /events without credentials: 401"
+              exit 0
+            fi
             sleep 1
           done
           echo "::error::/healthz did not answer within 15 seconds."
