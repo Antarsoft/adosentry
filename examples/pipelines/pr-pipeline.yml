@@ -10,7 +10,7 @@ resources:
   repositories:
     - repository: templates
       type: git                              # or: github, with endpoint: <GitHub service connection>
-      name: <project>/ado-ai-code-review      # your imported copy of this repository
+      name: <project>/adosentry               # your imported copy of this repository
       ref: refs/tags/v1.0.0
 
 stages:
