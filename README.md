@@ -34,6 +34,12 @@ AI pull request review for Azure DevOps. PullPicket is a pipeline stage template
 
 PullPicket only reviews pull requests in Azure Repos, using models hosted in Azure. GitHub and GitLab as review hosts and non-Azure model providers are out of scope for 1.0.
 
+<p align="center">
+  <img src="docs/assets/pr-review.png" alt="Two PullPicket comments on a pull request diff: a WARNING about an unawaited save call with a suggested fix, and a SUGGESTION about floating-point money totals" width="760">
+</p>
+
+<sub>Illustration with a placeholder repository and code. Comments appear as ordinary pull request threads on the changed lines.</sub>
+
 ## How it works
 
 ```
