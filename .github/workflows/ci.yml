@@ -1,4 +1,4 @@
-# CI for AdoSentry: PowerShell engine tests and analyzer, the Go metrics API, and a secret scan.
+# CI for AdoSentry: PowerShell engine tests and analyzer, the Go metrics API, a secret scan and Bicep lint.
 # Every action is pinned by commit SHA (Dependabot keeps the pins current).
 name: CI
 
@@ -128,3 +128,39 @@ jobs:
       - name: Scan full history
         run: |
           "$RUNNER_TEMP/gitleaks" git --redact --verbose --exit-code 1 .
+
+  bicep:
+    name: Bicep (build + lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BICEP_VERSION: "0.48.1"
+      BICEP_SHA256: "b09ec25a9d376c1f8e33ede6ed22b587f915ad68488d5db77a6f9541748c7f6e"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Standalone CLI pinned by version and checksum; `az bicep install` would pull whatever is latest.
+      - name: Install Bicep CLI
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/bicep" \
+            "https://github.com/Azure/bicep/releases/download/v${BICEP_VERSION}/bicep-linux-x64"
+          echo "${BICEP_SHA256}  $RUNNER_TEMP/bicep" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/bicep"
+          "$RUNNER_TEMP/bicep" --version
+
+      # Linter rules and their levels live in infra/bicepconfig.json; any error-level finding fails the job.
+      - name: Build and lint infra/
+        run: |
+          status=0
+          while IFS= read -r -d '' file; do
+            echo "::group::$file"
+            case "$file" in
+              *.bicepparam) "$RUNNER_TEMP/bicep" build-params "$file" --stdout > /dev/null || status=1 ;;
+              *)            "$RUNNER_TEMP/bicep" build "$file" --stdout > /dev/null || status=1 ;;
+            esac
+            "$RUNNER_TEMP/bicep" lint "$file" || status=1
+            echo "::endgroup::"
+          done < <(find infra -type f \( -name '*.bicep' -o -name '*.bicepparam' \) -print0 | sort -z)
+          exit "$status"
