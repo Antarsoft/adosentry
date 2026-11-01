@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The metrics API builds with Go 1.27 (`go.mod` and the Docker builder image `golang:1.27-alpine`). Replaces Dependabot PR #5, which bumped only the Dockerfile.
+- The DCO sign-off CI job skips release pull requests into `main`. Their commits were already checked on their way into `development`, and the history includes commits from before sign-off was required.
 
 ## [1.0.0] - 2026-11-01
 

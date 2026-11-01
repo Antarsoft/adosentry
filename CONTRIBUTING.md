@@ -111,7 +111,7 @@ git rebase --signoff development
 git push --force-with-lease
 ```
 
-The **DCO sign-off** CI job checks every commit in a pull request (merge commits aside) for a `Signed-off-by` line with the commit author's email. Dependabot's commits and commits written by the maintainers' AI coding assistant are exempt; a maintainer reviews and merges those.
+The **DCO sign-off** CI job checks every commit in a pull request (merge commits aside) for a `Signed-off-by` line with the commit author's email. Dependabot's commits and commits written by the maintainers' AI coding assistant are exempt; a maintainer reviews and merges those. The job does not run on release pull requests into `main`, because their commits were already checked on their way into `development`.
 
 If your employer has rights to code you write, make sure you are allowed to contribute before you sign off.
 

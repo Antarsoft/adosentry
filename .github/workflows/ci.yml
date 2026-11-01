@@ -197,7 +197,9 @@ jobs:
 
   dco:
     name: DCO sign-off
-    if: ${{ github.event_name == 'pull_request' }}
+    # Release PRs (development into main) carry the whole history, including commits from before
+    # sign-off was required. Their commits were already checked on their way into development.
+    if: ${{ github.event_name == 'pull_request' && github.base_ref != 'main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
