@@ -1,4 +1,6 @@
 parameters:
+  # Path to the repository's rules file (or, with promptMode: legacy, its complete prompt), relative to
+  # the repository root. The file is left out of its own review.
   - name: promptFile
     type: string
   # 'rules' (default): promptFile is the repo's short rules file and the engine adds its shared
@@ -33,6 +35,8 @@ parameters:
     values:
       - entra
       - key
+  # Set to true to let the pipeline carry on when the review step fails (for example, the model is
+  # unreachable). The step then shows as succeeded with issues instead of failed.
   - name: continueOnError
     type: boolean
     default: false
@@ -41,24 +45,35 @@ parameters:
   - name: aiReviewDebugLogging
     type: string
     default: ""
+  # Space-separated git pathspecs; only matching files are reviewed. Empty reviews every changed file.
   - name: reviewPathSpec
     type: string
     default: ""
+  # Space-separated wildcard patterns matched against repo-relative paths (such as 'docs/* *.generated.cs').
+  # Matching files are skipped, on top of the default excludes.
   - name: reviewExcludePathSpec
     type: string
     default: ""
+  # Most files sent to the model in one request. Larger pull requests are split into batches.
   - name: reviewMaxFilesPerBatch
     type: number
     default: 25
+  # Approximate token budget for one request, prompt included. A batch the model rejects as too large is
+  # split in two and retried.
   - name: reviewMaxBatchTokens
     type: number
     default: 300000
+  # Approximate token limit for one file's diff. Lines past it are not reviewed and the run summary
+  # counts the file as truncated.
   - name: reviewMaxFileTokens
     type: number
     default: 80000
+  # Set to true to list deleted file paths (not their content) in the review input, so the model can flag a
+  # risky deletion with a comment on the pull request as a whole.
   - name: reviewDeletedFiles
     type: boolean
     default: false
+  # Skip lockfiles, minified files and source maps, images, fonts, documents, archives and binaries.
   - name: reviewDefaultExcludes
     type: boolean
     default: true
@@ -71,6 +86,8 @@ parameters:
     values:
       - entra
       - key
+  # Resource the Entra token is requested for with foundryAuth: entra. The default suits Azure AI Foundry;
+  # use https://cognitiveservices.azure.com for a classic Azure OpenAI resource.
   - name: foundryTokenResource
     type: string
     default: "https://ai.azure.com"

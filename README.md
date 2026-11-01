@@ -148,8 +148,7 @@ The stage takes its settings as template parameters. The ones you are most likel
 | `reviewPathSpec` / `reviewExcludePathSpec` | empty | Limit the review to, or exclude, paths. |
 | `reviewDefaultExcludes` | `true` | Skip lockfiles, minified files, images, fonts, archives and binaries. |
 
-<!-- TODO(X2): replace this table with the generated parameter reference from stage-template.yml, kept current by a CI check. -->
-The full parameter reference will be generated from `stage-template.yml` (planned). Until then, the comments in [`ai-code-review/stage-template.yml`](ai-code-review/stage-template.yml) are the reference.
+Every parameter, with its type, default and allowed values, is in the [parameter reference](docs/parameters.md). It is generated from the comments in [`ai-code-review/stage-template.yml`](ai-code-review/stage-template.yml), and CI fails if the two drift apart.
 
 <!-- TODO(X3): link docs/troubleshooting.md (non-PR runs, identity not in the ADO org, missing OpenAI role, agent pool overriding variables, foundryTokenResource for classic Azure OpenAI). -->
 

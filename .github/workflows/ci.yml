@@ -62,12 +62,19 @@ jobs:
         run: |
           Import-Module PSScriptAnalyzer -RequiredVersion $env:ANALYZER_VERSION
           # Engine scripts only (no -Recurse): the tests use stub functions and fake tokens on purpose.
-          $findings = Invoke-ScriptAnalyzer -Path ai-code-review -Settings ai-code-review/PSScriptAnalyzerSettings.psd1
+          $findings = @(Invoke-ScriptAnalyzer -Path ai-code-review -Settings ai-code-review/PSScriptAnalyzerSettings.psd1)
+          $findings += @(Invoke-ScriptAnalyzer -Path tools -Settings ai-code-review/PSScriptAnalyzerSettings.psd1)
           foreach ($f in $findings) {
             Write-Host "::error file=$($f.ScriptPath),line=$($f.Line)::$($f.RuleName): $($f.Message)"
           }
           if ($findings) { throw "PSScriptAnalyzer reported $(@($findings).Count) finding(s)." }
           Write-Host "PSScriptAnalyzer: no findings."
+
+      # docs/parameters.md is generated from the template's parameters and their comments.
+      - name: Check the parameter reference is current
+        if: ${{ !cancelled() }}
+        shell: pwsh
+        run: ./tools/Update-ParameterReference.ps1 -Check
 
   go:
     name: Go (metrics API)
