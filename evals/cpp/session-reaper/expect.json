@@ -1,0 +1,26 @@
+{
+  "description": "A session reaper erases from a vector while iterating it, updates a shared counter from a worker thread without synchronisation, and never joins the thread.",
+  "findings": [
+    {
+      "id": "erase-invalidation",
+      "file": "/src/server/session_reaper.cpp",
+      "anchor": "sessions.erase(it);",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "data-race-counter",
+      "file": "/src/server/session_reaper.cpp",
+      "anchor": "++reaped_total_;",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "thread-not-joined",
+      "file": "/src/server/session_reaper.cpp",
+      "anchor": "std::thread worker([this, &sessions] {",
+      "minSeverity": "WARNING",
+      "tolerance": 6
+    }
+  ]
+}
