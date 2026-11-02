@@ -24,7 +24,7 @@ This repository is a Vue 3 application in TypeScript, with single-file component
 1. Every listener, timer, interval or subscription started in `onMounted`, `setup` or a composable needs cleanup in `onUnmounted` / `onScopeDispose` (WARNING).
 2. A `watch` or `watchEffect` that starts an async request must ignore stale results (`onCleanup` / `onWatcherCleanup` with an `AbortController`). A missing guard is WARNING when the source can change while a request is in flight.
 3. An unawaited promise whose failure would be lost is WARNING, unless it has its own `.catch`.
-4. A `fetch` whose response is used without checking `res.ok` is WARNING.
+4. A `fetch` whose response is used without checking `res.ok` is WARNING. A missing runtime shape check on a response from the app's own API is SUGGESTION at most.
 
 ### Templates and lists
 

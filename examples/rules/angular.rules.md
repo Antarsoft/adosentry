@@ -32,7 +32,8 @@ This repository is an Angular 17+ application in TypeScript, with standalone com
 ### HTTP and errors
 
 1. A URL or query string built from user input without `HttpParams` or `encodeURIComponent` is WARNING.
-2. An error swallowed in `subscribe({ error })` or `catchError(() => EMPTY)` with no user feedback or logging is WARNING.
+2. A missing runtime shape check on a response from the app's own API is SUGGESTION at most.
+3. An error swallowed in `subscribe({ error })` or `catchError(() => EMPTY)` with no user feedback or logging is WARNING.
 
 ## Conventions to respect
 

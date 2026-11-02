@@ -40,4 +40,4 @@ This repository holds Terraform 1.5+ for Azure infrastructure (the `azurerm` 4.x
 
 ## Conventions to respect
 
-`terraform fmt`, `terraform validate` and `tflint` run in CI; do not comment on formatting or on what they already check. Prefer the naming and tagging patterns already in the module.
+`terraform fmt`, `terraform validate` and `tflint` run in CI; do not comment on formatting or on what they already check. Provider-managed secret attributes (such as `random_password.result` and `azurerm_key_vault_secret.value`) are already marked sensitive; do not flag them. Prefer the naming and tagging patterns already in the module.

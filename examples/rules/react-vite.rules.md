@@ -34,7 +34,7 @@ This repository is a React 18/19 single-page app in TypeScript, built with Vite.
 
 1. A `fetch` whose response is used without checking `res.ok` (or the client's error path) is WARNING.
 2. An unawaited promise whose failure would be lost is WARNING, unless it has its own `.catch`.
-3. A type assertion (`as Something`) on API data without a runtime check is SUGGESTION, unless the value then reaches `dangerouslySetInnerHTML`, a URL or a security decision (WARNING).
+3. A type assertion (`as Something`) or a missing runtime shape check on a response from the app's own API is SUGGESTION at most, unless the value then reaches `dangerouslySetInnerHTML`, a URL or a security decision (WARNING).
 
 ### Build configuration
 

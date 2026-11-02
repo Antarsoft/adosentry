@@ -29,7 +29,7 @@ This repository holds Kubernetes manifests (plain YAML, Kustomize overlays and H
 1. A container without CPU and memory `requests`, or without a memory `limit`, is WARNING.
 2. An image with the `latest` tag or no tag is WARNING; pin a version or digest.
 3. A long-running workload without a `readinessProbe` is WARNING. A `livenessProbe` that checks downstream dependencies is SUGGESTION (it restarts pods when a dependency is down).
-4. Changing `spec.selector` on an existing `Deployment` or `StatefulSet`, or a `StatefulSet`'s `volumeClaimTemplates`, is WARNING: these fields are immutable and the apply fails.
+4. Changing a `spec.selector.matchLabels` key or value on an existing `Deployment` or `StatefulSet`, or a `StatefulSet`'s `volumeClaimTemplates`, is WARNING: these fields are immutable and the apply fails.
 5. Removing `helm.sh/resource-policy: keep` from a `PersistentVolumeClaim`, or changing a `StorageClass` `reclaimPolicy` to `Delete` for data that matters, is CRITICAL.
 6. A production `Deployment` with one replica and no `PodDisruptionBudget` is SUGGESTION.
 

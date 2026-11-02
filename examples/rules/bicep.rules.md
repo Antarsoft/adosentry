@@ -12,7 +12,7 @@ This repository holds Bicep templates and modules for Azure infrastructure, depl
 
 ### Destructive and state-changing deployments
 
-1. Changing the `name` of a stateful resource (storage account, database, key vault, Cosmos DB account) deploys a new, empty resource and points dependants at it; the old one keeps the data. That is CRITICAL unless the change is clearly a planned migration.
+1. Changing the `name` of a stateful resource (SQL server or database, storage account, key vault, Cosmos DB account), including a name passed to a module as a parameter such as `serverName`, deploys a new, empty resource and points dependants at it; the old one keeps the data. That is CRITICAL unless the change is clearly a planned migration.
 2. Changing a property that cannot be updated in place (for example a storage account's `kind` downgrade, a Cosmos DB account's partition key, a SQL server's `administratorLogin`) is WARNING.
 3. Switching a deployment to `--mode Complete`, or removing a resource lock on production, is CRITICAL.
 

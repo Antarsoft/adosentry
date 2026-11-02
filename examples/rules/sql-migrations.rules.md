@@ -9,7 +9,7 @@ This repository holds versioned SQL migrations for a PostgreSQL 14+ database (Fl
 1. `DROP TABLE`, `DROP COLUMN`, `TRUNCATE` or `DROP SCHEMA` on data that is still read, or without a preceding step that copies or archives the data, is CRITICAL.
 2. `UPDATE` or `DELETE` without a `WHERE` clause (or with one that matches every row by mistake) is CRITICAL.
 3. Changing a column to a narrower type (shorter `varchar(n)`, `integer` from `bigint`, lower `numeric` precision) or a type that cannot hold every existing value is CRITICAL.
-4. Editing, renaming or deleting a migration that has already been applied (an earlier version number) is WARNING: checksums fail and environments drift. Add a new migration instead.
+4. Any change to an existing migration file, rather than a new file, is WARNING: it has most likely been applied already, so checksums fail and environments drift. Add a new migration instead.
 
 ### Zero-downtime compatibility
 
