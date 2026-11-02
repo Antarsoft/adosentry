@@ -32,3 +32,4 @@ stages:
       # metricsAuth: entra                               # or 'key' with the secret aiMetricsApiKey in that group
       # reviewPathSpec: 'src/**/*.ts'                   # optional: only review these paths
       # reviewDeletedFiles: true
+      # reviewRepoContext: true                         # optional: send callers and imports of the changed code

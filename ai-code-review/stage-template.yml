@@ -77,6 +77,18 @@ parameters:
   - name: reviewDefaultExcludes
     type: boolean
     default: true
+  # Set to true to send read-only context from the rest of the repository with each batch: a map of the
+  # repository's files, plus excerpts of files that use what the pull request changes and of files the changed
+  # files import. It is read from the pipeline's own checkout with git (no extra access) and costs extra prompt
+  # tokens, up to reviewContextMaxTokens per batch. The model still only comments on the diff.
+  - name: reviewRepoContext
+    type: boolean
+    default: false
+  # Approximate token budget for repository context in one request. It is taken out of reviewMaxBatchTokens, so
+  # requests do not grow; the diff keeps at least half. Only used with reviewRepoContext: true.
+  - name: reviewContextMaxTokens
+    type: number
+    default: 12000
   # 'entra' (default) signs in with the service connection's identity (it needs the Cognitive
   # Services OpenAI User role on the Foundry account). 'key' uses the foundry-key variable from
   # the model variable group instead; the key is only mapped into the step in that mode.
@@ -170,7 +182,9 @@ stages:
                       -MaxBatchTokens ${{ parameters.reviewMaxBatchTokens }} `
                       -MaxFileTokens ${{ parameters.reviewMaxFileTokens }} `
                       -ReviewDeletedFiles '${{ parameters.reviewDeletedFiles }}' `
-                      -UseDefaultExcludes '${{ parameters.reviewDefaultExcludes }}'
+                      -UseDefaultExcludes '${{ parameters.reviewDefaultExcludes }}' `
+                      -RepoContext '${{ parameters.reviewRepoContext }}' `
+                      -ContextMaxTokens ${{ parameters.reviewContextMaxTokens }}
 
                     $phase = 'post'
                     $postResult = Set-PullRequestComments `
@@ -259,6 +273,8 @@ stages:
                             reasoningTokens          = if ($reviewResult) { $reviewResult.ReasoningTokens } else { 0 }
                             cachedTokens             = if ($reviewResult) { $reviewResult.CachedTokens } else { 0 }
                             tokensUsed               = if ($reviewResult) { $reviewResult.TotalTokens } else { 0 }
+                            contextFiles             = if ($reviewResult) { [int]$reviewResult.ContextFiles } else { 0 }
+                            contextTokens            = if ($reviewResult) { [int]$reviewResult.ContextTokens } else { 0 }
                             model                    = '$(modelName)'
                         }
                     }

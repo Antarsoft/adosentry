@@ -104,6 +104,8 @@ To compare, run the same pipeline once on a Microsoft-hosted pool (`pool: vmImag
 | `... was blocked by the content filter` | The Azure content filter blocked the response. | Review the filter settings on the deployment; the rest of the batches still post. |
 | `Failed to parse LLM review output as JSON` | The model does not support structured output (`response_format` with a JSON schema). | Use a model that does. |
 | `No reviewable files remain after path filtering` | Every changed file matched an exclude, or none matched `reviewPathSpec`. | Check `reviewPathSpec`, `reviewExcludePathSpec` and `reviewDefaultExcludes`. |
+| `Could not read the repository for context` or `Could not build the repository context for batch` | `reviewRepoContext` is on, but `git` could not read the pull request branch (for example the checkout was made shallow or without the branch). The review carries on without context. | Keep `fetchDepth: 0` on the `checkout: self` step, as the template sets it. |
+| `Repository context for batch ...: 0 related file(s)` | Nothing in the repository uses what the batch changes, or the changed files are not a language PullPicket reads imports for. Only the file map is sent. | Nothing to fix. |
 | `metricsAuth is 'entra' but aiMetricsApiResource ... is not set` | The metrics variable group has no `aiMetricsApiResource`. | Set it to the metrics API's application ID URI, or set `metricsAuth: key`. See [metrics.md](metrics.md). |
 | `Failed to send AI Code Review metrics event: ... 401` or `403` | The metrics API rejected the credential. | `401`: wrong or missing token or key. `403`: the identity lacks the `Events.Write` role; run `infra/grant-events-write.sh`. See [metrics.md](metrics.md#troubleshooting). |
 

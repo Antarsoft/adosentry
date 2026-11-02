@@ -57,6 +57,9 @@ function Format-ReviewSummary {
         if ($ReviewResult.CommentsSnapped -or $ReviewResult.CommentsInvalid) {
             $parts.Add("anchors $($ReviewResult.CommentsSnapped) moved, $($ReviewResult.CommentsInvalid) dropped")
         }
+        if ($ReviewResult.ContextTokens) {
+            $parts.Add("repository context $($ReviewResult.ContextFiles) file(s), about $($ReviewResult.ContextTokens) tokens")
+        }
         $parts.Add("tokens $($ReviewResult.TotalTokens)")
         $parts.Add("model time $([Math]::Round($ReviewResult.LatencyMs / 1000, 1))s")
     }

@@ -57,6 +57,7 @@ PullPicket is a pipeline stage template that sends the changes in a pull request
 - Uses a shared base prompt plus a short rules file that you keep in your own repository, so each repository describes its own stack and conventions.
 - Splits large pull requests into batches, skips lockfiles, generated output and binaries, and stays within per-file and per-batch token limits.
 - Remembers its own earlier comments on the pull request, so a new push does not repeat a finding that is already open.
+- Optionally reads related code from the rest of the repository (a file map, the callers of what changed, the files it imports) so the review can catch a change that breaks another file. Read-only, from the pipeline's own checkout, within a token budget.
 - Treats the diff as untrusted data: text in the code that tries to steer the reviewer is flagged instead of followed.
 - Signs in to the model and to Azure DevOps with the identity of an Azure Resource Manager service connection (Entra ID). No API keys are needed by default.
 - Optionally sends one event per run (tokens, comments, outcome, latency) to a small metrics API with a dashboard.
@@ -313,6 +314,7 @@ The stage takes its settings as template parameters. The ones you are most likel
 | `metricsAuth` | `entra` | `entra` sends a token for `aiMetricsApiResource` from the service connection; `key` sends `aiMetricsApiKey` as `X-Api-Key`. |
 | `reviewPathSpec` / `reviewExcludePathSpec` | empty | Limit the review to, or exclude, paths. |
 | `reviewDefaultExcludes` | `true` | Skip lockfiles, minified files, images, fonts, archives and binaries. |
+| `reviewRepoContext` | `false` | Send related code from the rest of the repository with each batch (up to `reviewContextMaxTokens`, default 12000). |
 
 Every parameter, with its type, default and allowed values, is in the [parameter reference](docs/parameters.md). It is generated from the comments in [`ai-code-review/stage-template.yml`](ai-code-review/stage-template.yml), and CI fails if the two drift apart.
 
@@ -325,6 +327,7 @@ You pay your Azure model provider per token; PullPicket adds no charge. What dri
 - **Diff size.** Each run sends the line-numbered diff of the pull request plus the base prompt and rules file. Bigger pull requests cost more.
 - **Batches.** A large pull request is split into batches (`reviewMaxFilesPerBatch`, `reviewMaxBatchTokens`), and each batch repeats the prompt. Very large single files are truncated at `reviewMaxFileTokens`.
 - **Re-runs.** Every push to the pull request runs a new full review of the whole diff.
+- **Repository context.** With `reviewRepoContext: true`, each batch also carries up to `reviewContextMaxTokens` of related code. The budget is taken out of `reviewMaxBatchTokens`, so no single request grows, but the run as a whole sends more prompt tokens.
 - **Reasoning.** Reasoning models also bill reasoning tokens; `reasoningEffort` controls how many.
 
 Ways to keep costs down: leave `reviewDefaultExcludes` on, use `reviewPathSpec` or `reviewExcludePathSpec` to skip generated or vendored code, pick a smaller model for routine repositories, and use the metrics dashboard to see tokens and estimated cost per run.

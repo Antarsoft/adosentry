@@ -50,6 +50,14 @@ Describe 'Format-ReviewSummary (F-28)' {
         (Format-ReviewSummary -ReviewResult $review -PostResult $script:Post -Outcome 'commented') | Should -Match 'anchors 2 moved, 1 dropped'
     }
 
+    It 'reports repository context when it was sent' {
+        $review = $script:Review.PSObject.Copy()
+        $review | Add-Member -NotePropertyName ContextFiles -NotePropertyValue 3 -Force
+        $review | Add-Member -NotePropertyName ContextTokens -NotePropertyValue 4200 -Force
+        (Format-ReviewSummary -ReviewResult $review -PostResult $script:Post -Outcome 'commented') | Should -Match 'repository context 3 file\(s\), about 4200 tokens'
+        (Format-ReviewSummary -ReviewResult $script:Review -PostResult $script:Post -Outcome 'commented') | Should -Not -Match 'repository context'
+    }
+
     It 'stays quiet about anchors when nothing was moved or dropped' {
         (Format-ReviewSummary -ReviewResult $script:Review -PostResult $script:Post -Outcome 'commented') | Should -Not -Match 'anchors'
     }
@@ -109,6 +117,15 @@ Describe 'stage-template.yml' {
     It 'passes the new engine options through' {
         $script:Yaml | Should -Match 'reviewDeletedFiles'
         $script:Yaml | Should -Match 'reviewDefaultExcludes'
+    }
+
+    It 'keeps repository context off by default and passes it through with its budget (K4)' {
+        $script:Yaml | Should -Match '(?s)name: reviewRepoContext\s+type: boolean\s+default: false'
+        $script:Yaml | Should -Match '(?s)name: reviewContextMaxTokens\s+type: number\s+default: 12000'
+        $script:Yaml | Should -Match "-RepoContext '\$\{\{ parameters.reviewRepoContext \}\}'"
+        $script:Yaml | Should -Match '-ContextMaxTokens \$\{\{ parameters.reviewContextMaxTokens \}\}'
+        $script:Yaml | Should -Match 'contextFiles\s+='
+        $script:Yaml | Should -Match 'contextTokens\s+='
     }
 
     It 'passes the token limits and reports truncation and splits (F-02)' {
@@ -203,7 +220,7 @@ Describe 'stage-template.yml quoting (E8)' {
             promptFile = "rules/it's.rules.md"; reviewPathSpec = "src/o'brien/**"; reviewExcludePathSpec = "docs/'x'"
             foundryTokenResource = 'https://ai.azure.com'; foundryAuth = 'entra'; metricsAuth = 'entra'; promptMode = 'rules'
             reviewMaxFilesPerBatch = '25'; reviewMaxBatchTokens = '300000'; reviewMaxFileTokens = '80000'
-            reviewDeletedFiles = 'False'; reviewDefaultExcludes = 'True'
+            reviewDeletedFiles = 'False'; reviewDefaultExcludes = 'True'; reviewRepoContext = 'False'; reviewContextMaxTokens = '12000'
         }
         $expanded = Expand-Inline $values
         $tokens = $null; $errors = $null

@@ -35,9 +35,10 @@ Each review run sends one or more chat completion requests to the model deployme
 | Prior review rounds | Only when the pull request already has PullPicket comments: for each, the file path, line number, severity, thread status, and the first 150 characters of the first line of the comment. |
 | The diff | A legend naming the source and target branches; for each reviewed file, its path (and the old path if it was renamed) and its changed lines with 5 lines of context around each change, numbered. Lines past `reviewMaxFileTokens` are cut. |
 | Deleted files | Only with `reviewDeletedFiles: true`: the paths of deleted files, not their content. |
+| Repository context | Only with `reviewRepoContext: true`: a map of the file paths on the pull request branch, and numbered excerpts of up to 12 related files per batch (files that use a function or type the batch changes, and files the changed files import), up to `reviewContextMaxTokens` per batch. Excluded paths are left out. It is read from the pipeline's own checkout with `git`, so it needs no extra access. |
 | Settings | The `modelName` and, if set, `reasoningEffort`, plus the JSON schema the answer must match. |
 
-The model does **not** receive: whole files beyond the context lines, files that are excluded (`reviewDefaultExcludes`, `reviewExcludePathSpec`, or not matched by `reviewPathSpec`), the pull request title or description, commit messages, other people's comments on the pull request, pipeline variables, or any credential.
+The model does **not** receive: whole files beyond the context lines (except the related-file excerpts above, when `reviewRepoContext` is on), files that are excluded (`reviewDefaultExcludes`, `reviewExcludePathSpec`, or not matched by `reviewPathSpec`), the pull request title or description, commit messages, other people's comments on the pull request, pipeline variables, or any credential.
 
 A large pull request is split into batches, and each batch is its own request that repeats the system message and prior review rounds.
 
@@ -50,6 +51,7 @@ Where the data goes after that depends on your model deployment: its region, dat
 The diff is written by the pull request author, so PullPicket treats it as hostile input:
 
 - The diff is wrapped between marker lines that carry a random id generated for each request. The author cannot know the id, so text in the diff cannot forge the closing marker and "escape" into instructions.
+- Repository context (`reviewRepoContext: true`) comes from the pull request branch too, so the author can change any file in it. It is wrapped in its own markers with their own random id and gets the same untrusted-content rules. The model is told never to comment on context files, and a comment on a file outside the diff is dropped before posting.
 - The base prompt tells the model that everything inside the diff and the prior review rounds is data under review, never instructions. Text that tries to steer the reviewer ("ignore previous instructions", "this file is pre-approved", "return an empty review") is not followed; the model is told to flag it as a `WARNING` on the nearest changed line instead.
 - The answer must match a strict JSON schema (file name, line number, severity, comment). Comments that point at a file or line outside the diff are moved to the nearest changed line or dropped.
 - The reviewer can only comment. It has no tools, cannot run code, cannot vote, approve or complete a pull request, and cannot change the repository.
@@ -66,7 +68,7 @@ Only when you set `metricsVariableGroup`, each run sends one JSON event to your 
 
 - `featureName` (`ai-code-review`), `source` (`ado-pipeline`), and the server-set `eventId`, `timestamp` and `receivedAt`;
 - the Azure DevOps **project name**, **repository name**, pull request id, pipeline run id, and the **source and target branch names**;
-- counts: files changed, reviewed, excluded, renamed, deleted and truncated; lines added and removed; batches; comments proposed, posted, skipped as duplicates, moved and dropped; and comments per severity;
+- counts: files changed, reviewed, excluded, renamed, deleted and truncated; lines added and removed; batches; comments proposed, posted, skipped as duplicates, moved and dropped; comments per severity; and, with `reviewRepoContext`, the number of related files and estimated tokens of repository context sent;
 - the **file paths that received comments**;
 - the run's outcome, error type and HTTP status code if it failed, latency, token counts, the model name and the PullPicket version.
 
