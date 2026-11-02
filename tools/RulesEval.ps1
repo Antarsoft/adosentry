@@ -107,14 +107,20 @@ function Resolve-FindingLine {
     param($Finding, $Diff)
 
     # Expectations name a line by a piece of its text, not its number, so a sample can be edited
-    # without renumbering. The anchor must sit on exactly one added line of the file.
+    # without renumbering. The anchor must sit on exactly one added line of the file, or the
+    # finding names which match it means with "occurrence" (1 = first, counted top to bottom).
     $file = [string]$Finding.file
     if (-not $Diff.LineText.ContainsKey($file)) { throw "Finding '$($Finding.id)' names $file, which is not in the sample's diff." }
-    $hits = @(foreach ($entry in $Diff.LineText[$file].GetEnumerator()) {
-            if ($Diff.Anchors[$file][$entry.Key] -eq 'added' -and $entry.Value.Contains([string]$Finding.anchor)) { $entry.Key }
-        })
-    if ($hits.Count -ne 1) { throw "Finding '$($Finding.id)' anchor '$($Finding.anchor)' matches $($hits.Count) added lines in $file; it must match exactly one." }
-    return [int]$hits[0]
+    $hits = @(@(foreach ($entry in $Diff.LineText[$file].GetEnumerator()) {
+                if ($Diff.Anchors[$file][$entry.Key] -eq 'added' -and $entry.Value.Contains([string]$Finding.anchor)) { [int]$entry.Key }
+            }) | Sort-Object)
+    $occurrence = if ($Finding.PSObject.Properties['occurrence']) { [int]$Finding.occurrence } else { 0 }
+    if ($occurrence -gt 0) {
+        if ($occurrence -gt $hits.Count) { throw "Finding '$($Finding.id)' asks for occurrence $occurrence of anchor '$($Finding.anchor)', but it matches $($hits.Count) added lines in $file." }
+        return $hits[$occurrence - 1]
+    }
+    if ($hits.Count -ne 1) { throw "Finding '$($Finding.id)' anchor '$($Finding.anchor)' matches $($hits.Count) added lines in $file; it must match exactly one (or set occurrence)." }
+    return $hits[0]
 }
 
 function ConvertFrom-ModelReviewJson {

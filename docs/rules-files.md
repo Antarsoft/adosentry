@@ -64,7 +64,8 @@ evals/nextjs/server-action-no-auth/
 }
 ```
 
-- `anchor` is a piece of text from exactly one added line. The finding counts as caught when a comment lands within `tolerance` lines of it (default 2) at `minSeverity` or above.
+- `anchor` is a piece of text from exactly one added line. If the text appears on several added lines, add `"occurrence": N` to pick the Nth from the top. The finding counts as caught when a comment lands within `tolerance` lines of it (default 2) at `minSeverity` or above.
+- Plant every bug on an added line. The reviewer can only comment on added lines, so a bug that exists only as a removed line (a deleted check, say) needs a nearby added line for the comment to land on.
 - A sample with `"findings": []` is a clean sample: a realistic, correct change that should get no `CRITICAL` or `WARNING` comment. Every stack needs at least one. Clean samples are what keep a rules file from getting noisy.
 - Use placeholder code and names only.
 
