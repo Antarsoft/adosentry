@@ -1,0 +1,26 @@
+{
+  "description": "A migration narrows a column type and adds a validated foreign key in one step, and an already-applied migration is edited.",
+  "findings": [
+    {
+      "id": "type-narrowing",
+      "file": "/db/migrations/V43__orders_constraints.sql",
+      "anchor": "ALTER COLUMN reference TYPE varchar(16)",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "fk-not-valid",
+      "file": "/db/migrations/V43__orders_constraints.sql",
+      "anchor": "ADD CONSTRAINT fk_orders_customer",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "edited-applied-migration",
+      "file": "/db/migrations/V12__create_orders.sql",
+      "anchor": "currency    char(3)",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}
