@@ -6,6 +6,7 @@
 foreach ($file in @(
         'Resolve-AdoCollectionUrl.ps1',
         'Get-CodeChanges.ps1',
+        'Get-RepoContext.ps1',
         'Get-ExistingReviewThreads.ps1',
         'Invoke-LLMCodeReview.ps1',
         'Set-PullRequestComments.ps1'
