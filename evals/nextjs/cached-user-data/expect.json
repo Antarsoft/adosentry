@@ -1,0 +1,19 @@
+{
+  "description": "A dashboard page caches a per-user fetch in the shared data cache, reads params synchronously, and a client widget starts an interval with no cleanup.",
+  "findings": [
+    {
+      "id": "per-user-cache",
+      "file": "/app/dashboard/[teamId]/page.tsx",
+      "anchor": "next: { revalidate: 300 },",
+      "minSeverity": "CRITICAL",
+      "tolerance": 3
+    },
+    {
+      "id": "interval-no-cleanup",
+      "file": "/app/dashboard/[teamId]/usage-meter.tsx",
+      "anchor": "setInterval(load, 10_000);",
+      "minSeverity": "WARNING",
+      "tolerance": 3
+    }
+  ]
+}

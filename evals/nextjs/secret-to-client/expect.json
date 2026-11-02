@@ -1,0 +1,6 @@
+{
+  "description": "A server-only Stripe secret key is read in a Server Component and passed as a prop into a Client Component.",
+  "findings": [
+    { "id": "secret-prop-to-client", "file": "/app/billing/page.tsx", "anchor": "stripeKey={stripeKey}", "minSeverity": "CRITICAL", "tolerance": 5 }
+  ]
+}
