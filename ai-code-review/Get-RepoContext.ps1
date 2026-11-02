@@ -25,31 +25,28 @@ function Get-TrackedFilePaths {
 function Get-RepoMap {
     param(
         [string[]]$Paths = @(),
-        [int]$MaxTokens = 3000
+        [int]$MaxTokens = 1500
     )
 
-    # A compact map of the repository: one line per folder with its file names. When that is over
-    # the budget, folders are shown with a file count instead of names, and past that the deepest
-    # folders are dropped. It tells the model where things live (is there a shared helpers folder,
-    # a tests folder next to this one) for a few thousand tokens at most.
+    # A compact map of the repository. A small repository is shown one line per folder with its
+    # file names. A larger one is shown as its top folders (two levels, then one) with file counts:
+    # enough to tell the model where things live (a shared helpers package, a tests tree) for a
+    # bounded number of tokens. The folders of the changed files are listed in full per batch.
     if ($Paths.Count -eq 0 -or $MaxTokens -le 0) {
         return ''
     }
 
+    $maxChars = [int]($MaxTokens * 3.5)
     $folders = [ordered]@{}
     foreach ($path in ($Paths | Sort-Object)) {
-        $slash = $path.LastIndexOf('/')
-        $folder = if ($slash -lt 0) { '/' } else { '/' + $path.Substring(0, $slash) + '/' }
-        $name = if ($slash -lt 0) { $path } else { $path.Substring($slash + 1) }
+        $folder = Get-RepoFolder -Path $path
         if (-not $folders.Contains($folder)) {
             $folders[$folder] = [System.Collections.Generic.List[string]]::new()
         }
-        $folders[$folder].Add($name)
+        $folders[$folder].Add($path.Substring($path.LastIndexOf('/') + 1))
     }
 
     $header = "## Repository map ($($Paths.Count) files, $($folders.Count) folders)`n`n"
-    $maxChars = [int]($MaxTokens * 3.5)
-
     $ordered = @($folders.Keys | Sort-Object @{ Expression = { $_ -ne '/' } }, @{ Expression = { $_ } })
     $named = foreach ($folder in $ordered) { "$folder  $($folders[$folder] -join ', ')" }
     $text = $header + ($named -join "`n") + "`n"
@@ -57,21 +54,87 @@ function Get-RepoMap {
         return $text
     }
 
-    # Too big with names: counts only, shallow folders first, then cut at the budget.
-    $counted = @($folders.Keys |
-            Sort-Object @{ Expression = { ($_ -split '/').Count } }, @{ Expression = { $_ } } |
-            ForEach-Object { "$_  ($($folders[$_].Count) files)" })
-    $builder = [System.Text.StringBuilder]::new($header)
+    foreach ($depth in @(2, 1)) {
+        $counts = [ordered]@{}
+        foreach ($path in $Paths) {
+            $segments = @($path -split '/')
+            $key = if ($segments.Count -le 1) { '/' } else { '/' + (($segments[0..([Math]::Min($depth, $segments.Count - 1) - 1)]) -join '/') + '/' }
+            $counts[$key] = 1 + [int]$counts[$key]
+        }
+        $lines = @($counts.Keys | Sort-Object @{ Expression = { $_ -ne '/' } }, @{ Expression = { $_ } } | ForEach-Object { "$_  ($($counts[$_]) files)" })
+        $text = $header + "Top folders with file counts:`n`n" + ($lines -join "`n") + "`n"
+        if ($text.Length -le $maxChars) {
+            return $text
+        }
+    }
+
+    # Even one level is too much: keep the biggest top folders.
+    $builder = [System.Text.StringBuilder]::new($header + "Largest top folders with file counts:`n`n")
     $shown = 0
-    foreach ($line in $counted) {
+    foreach ($line in ($lines | Sort-Object { [int]([regex]::Match($_, '\((\d+) files\)').Groups[1].Value) } -Descending)) {
         if ($builder.Length + $line.Length + 60 -gt $maxChars) { break }
         [void]$builder.Append($line).Append("`n")
         $shown++
     }
-    if ($shown -lt $counted.Count) {
-        [void]$builder.Append("... and $($counted.Count - $shown) deeper folder(s) not shown`n")
+    if ($shown -lt $lines.Count) {
+        [void]$builder.Append("... and $($lines.Count - $shown) more top folder(s)`n")
     }
     return $builder.ToString()
+}
+
+function Get-RepoFolder {
+    param([string]$Path)
+    $slash = $Path.LastIndexOf('/')
+    if ($slash -lt 0) { return '/' }
+    return '/' + $Path.Substring(0, $slash) + '/'
+}
+
+function Get-FolderIndex {
+    param([string[]]$Paths = @())
+
+    # Folder ('/src/api/', or '/' for the root) -> the file names directly in it, built once a run
+    # so per-batch lookups do not walk every tracked path.
+    $index = @{}
+    foreach ($path in $Paths) {
+        $folder = Get-RepoFolder -Path $path
+        if (-not $index.ContainsKey($folder)) { $index[$folder] = [System.Collections.Generic.List[string]]::new() }
+        $index[$folder].Add($path.Substring($path.LastIndexOf('/') + 1))
+    }
+    return $index
+}
+
+function Test-TestFilePath {
+    param([string]$Path)
+
+    # Test, spec, e2e and sample code. Its helpers are only called by tests, and as callers of
+    # changed code it matters less than production code, so it ranks last.
+    return $Path -match '(^|/)(tests?|__tests__|spec|e2e|samples?|examples?|integration)/|(_test\.go|\.Tests\.ps1|\.(test|spec|e2e-spec)\.[cm]?[jt]sx?|(^|/)test_[^/]+\.py|_test\.py|Tests?\.cs)$'
+}
+
+function Get-ChangedFolderListing {
+    param(
+        [string[]]$Files = @(),
+        [hashtable]$Folders = @{},
+        [int]$MaxNamesPerFolder = 40
+    )
+
+    # The file names in each folder that holds a changed file: the neighbours a reviewer would
+    # glance at (an existing helper, a sibling module, the tests folder next door).
+    $byFolder = [ordered]@{}
+    foreach ($file in $Files) { $byFolder[(Get-RepoFolder -Path $file)] = $true }
+    if ($byFolder.Count -eq 0) {
+        return ''
+    }
+
+    $builder = [System.Text.StringBuilder]::new("## Folders of the changed files`n`n")
+    foreach ($folder in $byFolder.Keys) {
+        $list = @($Folders[$folder] | Where-Object { $_ } | Sort-Object)
+        if ($list.Count -eq 0) { continue }
+        $shown = @($list | Select-Object -First $MaxNamesPerFolder) -join ', '
+        $more = if ($list.Count -gt $MaxNamesPerFolder) { ", ... and $($list.Count - $MaxNamesPerFolder) more" } else { '' }
+        [void]$builder.Append("$folder  $shown$more`n")
+    }
+    return $builder.ToString() + "`n"
 }
 
 function Get-RefFileLines {
@@ -122,7 +185,8 @@ function Get-ImportedFilePaths {
         [string]$File,
         [string[]]$Lines = @(),
         [hashtable]$Tracked = @{},
-        [hashtable]$GoModules = @{}
+        [hashtable]$GoModules = @{},
+        [hashtable]$Folders = $null
     )
 
     # Files in this repository that $File imports, from the import syntax of the common languages.
@@ -152,6 +216,11 @@ function Get-ImportedFilePaths {
                     if (-not $base) { continue }
                     $candidates = @($base) + @('.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.d.ts', '.vue' | ForEach-Object { "$base$_" }) +
                         @('/index.ts', '/index.tsx', '/index.js', '/index.jsx' | ForEach-Object { "$base$_" })
+                    # ESM TypeScript imports name the compiled file ('./x.js') for the source './x.ts'.
+                    if ($base -match '^(.+)\.([mc]?)jsx?$') {
+                        $stem = $matches[1]; $flavour = $matches[2]
+                        $candidates += @("$stem.${flavour}ts", "$stem.tsx")
+                    }
                     & $addFirst $candidates $line
                 }
             }
@@ -192,10 +261,9 @@ function Get-ImportedFilePaths {
                             $folder = (($GoModules[$module] + $importPath.Substring($module.Length)) -replace '^/', '').TrimEnd('/')
                             $prefix = if ($folder) { "$folder/" } else { '' }
                             # A Go package is a folder; take its first few non-test files.
-                            $files = @($Tracked.Keys | Where-Object {
-                                    $_.StartsWith($prefix) -and $_.EndsWith('.go') -and -not $_.EndsWith('_test.go') -and
-                                    $_.Substring($prefix.Length) -notmatch '/'
-                                } | Sort-Object | Select-Object -First 3)
+                            if ($null -eq $Folders) { $Folders = Get-FolderIndex -Paths @($Tracked.Keys) }
+                            $files = @($Folders["/$prefix"] | Where-Object { $_ -and $_.EndsWith('.go') -and -not $_.EndsWith('_test.go') } |
+                                    Sort-Object | Select-Object -First 3 | ForEach-Object { "$prefix$_" })
                             foreach ($goFile in $files) { & $addFirst @($goFile) $line }
                         }
                     }
@@ -311,7 +379,7 @@ function Find-SymbolUsage {
         [string[]]$ExcludePathSpec = @(),
         [string[]]$PathSpec = @(),
         [int]$MaxSymbols = 20,
-        [int]$MaxFilesPerSymbol = 40
+        [int]$MaxFilesPerSymbol = 25
     )
 
     # Files on the branch that use the symbols, found with one `git grep -w` on the ref (whole
@@ -362,13 +430,14 @@ function Find-SymbolUsage {
         $hits = @($entry.Hits | Where-Object { $_.Text -match "(?<![\w$-])(?:$names)(?![\w$-])" })
         [PSCustomObject]@{
             Path    = $entry.Path
+            IsTest  = (Test-TestFilePath -Path $entry.Path)
             Symbols = @($kept | ForEach-Object { $_.Name })
             Score   = [int](@($kept | ForEach-Object { $_.Priority }) | Measure-Object -Sum).Sum
             Lines   = @($hits | ForEach-Object { $_.Line })
         }
     }
 
-    return @($result | Sort-Object @{ Expression = 'Score'; Descending = $true }, @{ Expression = { $_.Lines.Count }; Descending = $true }, Path)
+    return @($result | Sort-Object IsTest, @{ Expression = 'Score'; Descending = $true }, @{ Expression = { $_.Lines.Count }; Descending = $true }, Path)
 }
 
 function Format-ContextExcerpt {
@@ -467,15 +536,18 @@ function New-RepoContextOptions {
     $paths = @(Get-TrackedFilePaths -Ref $ref -ExcludePathSpec $excludes)
     $tracked = @{}
     foreach ($path in $paths) { $tracked[$path] = $true }
-    $mapBudget = [Math]::Min(3000, [int]($MaxTokens / 4))
+    $mapBudget = [Math]::Min(1500, [int]($MaxTokens / 8))
+    $repoMap = Get-RepoMap -Paths $paths -MaxTokens $mapBudget
 
     return [PSCustomObject]@{
         Ref             = $ref
         ExcludePathSpec = $excludes
         MaxTokens       = $MaxTokens
         Tracked         = $tracked
+        Folders         = Get-FolderIndex -Paths $paths
         GoModules       = Get-GoModuleMap -Ref $ref -Paths $paths
-        RepoMap         = Get-RepoMap -Paths $paths -MaxTokens $mapBudget
+        RepoMap         = $repoMap
+        MapHasNames     = ($repoMap -and $repoMap -notmatch 'top folders with file counts')
         FileCache       = @{}
     }
 }
@@ -507,7 +579,7 @@ function New-BatchRepoContext {
         $language = Get-CodeLanguage -Path $block.File
         if (-not $language) { continue }
         # Helpers a test file declares are only called by tests; their callers add nothing.
-        if ($block.File -match '(_test\.go|\.Tests\.ps1|\.(test|spec)\.[jt]sx?|(^|/)test_[^/]+\.py|_test\.py|Tests?\.cs)$') { continue }
+        if (Test-TestFilePath -Path $block.File) { continue }
         if (-not $families.Contains($language.Name)) {
             $families[$language.Name] = [PSCustomObject]@{
                 PathSpec = $language.PathSpec
@@ -530,13 +602,13 @@ function New-BatchRepoContext {
         $symbols = @(Get-ChangedSymbolNames -ChangedLines @($family.Lines) -HunkFunctions @($family.Headers))
         Find-SymbolUsage -Ref $Options.Ref -Symbols $symbols -SkipFiles $batchFiles -ExcludePathSpec $Options.ExcludePathSpec -PathSpec $family.PathSpec
     }
-    $callers = @($callerList | Where-Object { $_ } | Sort-Object @{ Expression = 'Score'; Descending = $true }, @{ Expression = { $_.Lines.Count }; Descending = $true }, Path)
+    $callers = @($callerList | Where-Object { $_ } | Sort-Object IsTest, @{ Expression = 'Score'; Descending = $true }, @{ Expression = { $_.Lines.Count }; Descending = $true }, Path)
 
     $imports = [System.Collections.Generic.List[object]]::new()
     $seenImports = @{}
     foreach ($file in $batchFiles) {
         $lines = Get-RefFileLines -Ref $Options.Ref -Path $file -Cache $Options.FileCache
-        foreach ($import in @(Get-ImportedFilePaths -File $file -Lines $lines -Tracked $Options.Tracked -GoModules $Options.GoModules)) {
+        foreach ($import in @(Get-ImportedFilePaths -File $file -Lines $lines -Tracked $Options.Tracked -GoModules $Options.GoModules -Folders $Options.Folders)) {
             if ($inBatch.ContainsKey($import.Path) -or $seenImports.ContainsKey($import.Path)) { continue }
             $seenImports[$import.Path] = $true
             $usedNames = @([regex]::Matches($import.ImportLine, '[A-Za-z_$][\w$]{2,}') | Where-Object { $addedWords.ContainsKey($_.Value) }).Count
@@ -545,15 +617,33 @@ function New-BatchRepoContext {
     }
     $importList = @($imports | Sort-Object @{ Expression = 'Score'; Descending = $true })
 
+    # At most three files per symbol and three test files in all, so one widely used type cannot
+    # fill the budget with near-identical call sites.
+    $perSymbol = @{}
+    $testFiles = 0
+    $callers = @(foreach ($caller in $callers) {
+            $fresh = @($caller.Symbols | Where-Object { [int]$perSymbol[$_] -lt 3 })
+            if ($fresh.Count -eq 0 -or ($caller.IsTest -and $testFiles -ge 3)) { continue }
+            foreach ($name in $caller.Symbols) { $perSymbol[$name] = 1 + [int]$perSymbol[$name] }
+            if ($caller.IsTest) { $testFiles++ }
+            $caller
+        })
+
+    # Callers and the imports the changed lines use, in turn; other imports only fill what is left.
+    $usedImports = @($importList | Where-Object { $_.Score -ge 2 })
+    $otherImports = @($importList | Where-Object { $_.Score -lt 2 })
     $candidates = [System.Collections.Generic.List[object]]::new()
-    for ($i = 0; $i -lt [Math]::Max($callers.Count, $importList.Count); $i++) {
+    for ($i = 0; $i -lt [Math]::Max($callers.Count, $usedImports.Count); $i++) {
         if ($i -lt $callers.Count) { $candidates.Add([PSCustomObject]@{ Kind = 'caller'; Item = $callers[$i] }) }
-        if ($i -lt $importList.Count) { $candidates.Add([PSCustomObject]@{ Kind = 'import'; Item = $importList[$i] }) }
+        if ($i -lt $usedImports.Count) { $candidates.Add([PSCustomObject]@{ Kind = 'import'; Item = $usedImports[$i] }) }
     }
+    foreach ($import in $otherImports) { $candidates.Add([PSCustomObject]@{ Kind = 'import'; Item = $import }) }
 
     $header = "# Repository context (read-only)`n`nFiles from the pull request branch that are related to the changes in this batch, for reference only. They are not part of the diff: never comment on them or their line numbers. Excerpts are partial; a caller missing here may still exist.`n`n"
     $builder = [System.Text.StringBuilder]::new($header)
     if ($Options.RepoMap) { [void]$builder.Append($Options.RepoMap).Append("`n") }
+    $listing = if ($Options.MapHasNames) { '' } else { Get-ChangedFolderListing -Files $batchFiles -Folders $Options.Folders }
+    if ($listing -and ($builder.Length + $listing.Length) -le [int]($Options.MaxTokens * 3.5 / 4)) { [void]$builder.Append($listing) }
 
     $budgetChars = [int]($Options.MaxTokens * 3.5)
     $files = 0

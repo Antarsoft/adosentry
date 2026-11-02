@@ -11,7 +11,7 @@ Please report security problems privately as described in [SECURITY.md](SECURITY
 | `ai-code-review/` | The review engine and the stage template | PowerShell 7; Pester, PSScriptAnalyzer |
 | `metrics/` | The optional metrics API and dashboard | Go; gofmt, go vet, go test, Docker build |
 | `infra/` | Bicep and Entra scripts for the metrics service | Bicep build and lint, shellcheck |
-| `tools/` | Maintenance scripts, such as the parameter reference generator | PowerShell 7; PSScriptAnalyzer |
+| `tools/` | Maintenance scripts, such as the parameter reference generator and `Measure-RepoContext.ps1` | PowerShell 7; PSScriptAnalyzer |
 | `docs/` | Guides linked from the README | |
 | `examples/` | Example pipeline and rules files | |
 

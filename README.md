@@ -327,7 +327,7 @@ You pay your Azure model provider per token; PullPicket adds no charge. What dri
 - **Diff size.** Each run sends the line-numbered diff of the pull request plus the base prompt and rules file. Bigger pull requests cost more.
 - **Batches.** A large pull request is split into batches (`reviewMaxFilesPerBatch`, `reviewMaxBatchTokens`), and each batch repeats the prompt. Very large single files are truncated at `reviewMaxFileTokens`.
 - **Re-runs.** Every push to the pull request runs a new full review of the whole diff.
-- **Repository context.** With `reviewRepoContext: true`, each batch also carries up to `reviewContextMaxTokens` of related code. The budget is taken out of `reviewMaxBatchTokens`, so no single request grows, but the run as a whole sends more prompt tokens.
+- **Repository context.** With `reviewRepoContext: true`, each batch also carries up to `reviewContextMaxTokens` of related code. The budget is taken out of `reviewMaxBatchTokens`, so no single request grows, but the run as a whole sends more prompt tokens: about 10% more on a median pull request in a small repository and about 75% more in a 2,700-file TypeScript repository, where small pull requests fill most of the budget. Output tokens do not change. Run `pwsh tools/Measure-RepoContext.ps1 -TargetRef <base> -SourceRef <branch>` in your own clone to see the estimate for your pull requests before you turn it on, and lower `reviewContextMaxTokens` to cap it.
 - **Reasoning.** Reasoning models also bill reasoning tokens; `reasoningEffort` controls how many.
 
 Ways to keep costs down: leave `reviewDefaultExcludes` on, use `reviewPathSpec` or `reviewExcludePathSpec` to skip generated or vendored code, pick a smaller model for routine repositories, and use the metrics dashboard to see tokens and estimated cost per run.
@@ -361,7 +361,7 @@ To connect a pipeline, create a variable group with `aiMetricsApiUrl` and `aiMet
 | `metrics/` | Optional metrics ingestion API and dashboard (Go, Cosmos DB). |
 | `infra/` | Bicep and Entra setup scripts for the metrics infrastructure. |
 | `docs/` | Parameter reference, troubleshooting and the metrics guide. |
-| `tools/` | Maintenance scripts, such as the parameter reference generator. |
+| `tools/` | Maintenance scripts, such as the parameter reference generator and the repository context cost estimate. |
 | `.github/` | GitHub Actions CI and Dependabot configuration. |
 | `.azuredevops/` | Azure Pipelines CI for the engine, for teams that host a copy in Azure Repos. |
 

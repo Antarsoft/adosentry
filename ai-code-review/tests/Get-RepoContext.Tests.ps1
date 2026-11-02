@@ -72,18 +72,25 @@ Describe 'Get-RepoMap' {
         $map | Should -Match '(?m)^/src/lib/  http\.ts$'
     }
 
-    It 'falls back to file counts when the names do not fit' {
-        $paths = 1..400 | ForEach-Object { "src/area$($_ % 4)/file-with-a-long-name-$_.ts" }
+    It 'falls back to the top two folder levels with file counts when the names do not fit' {
+        $paths = 1..400 | ForEach-Object { "src/area$($_ % 4)/deep/file-with-a-long-name-$_.ts" }
         $map = Get-RepoMap -Paths $paths -MaxTokens 300
+        $map | Should -Match 'Top folders with file counts'
         $map | Should -Match '(?m)^/src/area0/  \(100 files\)$'
         $map | Should -Not -Match 'file-with-a-long-name'
+        $map | Should -Not -Match '/deep/'
     }
 
-    It 'stays within the budget and says how many folders it left out' {
-        $paths = 1..2000 | ForEach-Object { "pkg/m$_/sub/deep/f.go" }
-        $map = Get-RepoMap -Paths $paths -MaxTokens 200
-        $map.Length | Should -BeLessOrEqual (200 * 3.5)
-        $map | Should -Match 'deeper folder\(s\) not shown'
+    It 'drops to one folder level, then to the largest folders, to stay within the budget' {
+        $paths = (1..2000 | ForEach-Object { "pkg/m$_/f.go" }) + @('docs/a.md')
+        $oneLevel = Get-RepoMap -Paths $paths -MaxTokens 200
+        $oneLevel | Should -Match '(?m)^/pkg/  \(2000 files\)$'
+        $oneLevel.Length | Should -BeLessOrEqual (200 * 3.5)
+
+        $many = 1..300 | ForEach-Object { "top$_/sub$_/f.go" }
+        $largest = Get-RepoMap -Paths $many -MaxTokens 100
+        $largest.Length | Should -BeLessOrEqual (100 * 3.5)
+        $largest | Should -Match 'more top folder\(s\)'
     }
 
     It 'returns nothing without files or budget' {
@@ -127,6 +134,11 @@ Describe 'Get-ImportedFilePaths' {
         $imports | Should -Be @('src/lib/http.ts', 'src/lib/index.ts', 'src/db/index.js')
     }
 
+    It 'maps an ESM import of the compiled .js file to the TypeScript source' {
+        Get-Imports 'src/api/routes.ts' @("import { createUser } from './users.js';", "import { get } from '../lib/http.js';") |
+            Should -Be @('src/api/users.ts', 'src/lib/http.ts')
+    }
+
     It 'resolves Python relative and absolute imports' {
         Get-Imports 'app/models/user.py' @('from ..util import slugify', 'from app.services import billing', 'import os') |
             Should -Be @('app/util.py', 'app/services/__init__.py')
@@ -148,6 +160,29 @@ Describe 'Get-ImportedFilePaths' {
 
     It 'ignores files that are not on the branch' {
         Get-Imports 'src/api/users.ts' @("import x from './missing';") | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Get-ChangedFolderListing' {
+    It 'lists the neighbours of each changed file' {
+        $folders = Get-FolderIndex -Paths @('src/api/users.ts', 'src/api/routes.ts', 'src/lib/http.ts', 'README.md')
+        $text = Get-ChangedFolderListing -Files @('src/api/users.ts') -Folders $folders
+        $text | Should -Match '(?m)^/src/api/  routes\.ts, users\.ts$'
+        $text | Should -Not -Match 'http\.ts'
+    }
+}
+
+Describe 'Test-TestFilePath' {
+    It 'recognises test, spec, e2e and sample files' -ForEach @(
+        @{ Path = 'svc/auth_test.go' }, @{ Path = 'ai-code-review/tests/A.Tests.ps1' }, @{ Path = 'src/a.spec.ts' },
+        @{ Path = 'src/__tests__/a.ts' }, @{ Path = 'app/test_models.py' }, @{ Path = 'sample/01/src/app.ts' }
+    ) {
+        Test-TestFilePath -Path $Path | Should -BeTrue
+    }
+
+    It 'leaves production files alone' {
+        Test-TestFilePath -Path 'src/api/users.ts' | Should -BeFalse
+        Test-TestFilePath -Path 'packages/core/testing-utils.ts' | Should -BeFalse
     }
 }
 
@@ -235,6 +270,15 @@ Describe 'Find-SymbolUsage' {
         $usage[0].Lines | Should -Be @(1, 2)
     }
 
+    It 'ranks production callers above test callers' {
+        New-TestRepo {
+            Write-RepoFile 'src/a.spec.ts' @('chargeCard(1);', 'chargeCard(2);', 'chargeCard(3);')
+            Write-RepoFile 'src/checkout.ts' 'chargeCard(total);'
+        }
+        $usage = Invoke-InRepo { Find-SymbolUsage -Ref 'origin/feature' -Symbols @([PSCustomObject]@{ Name = 'chargeCard'; Priority = 2 }) }
+        @($usage | ForEach-Object { $_.Path }) | Should -Be @('src/checkout.ts', 'src/a.spec.ts')
+    }
+
     It 'drops a symbol that too many files use' {
         New-TestRepo {
             1..5 | ForEach-Object { Write-RepoFile "src/f$_.ts" 'logEvent("x");' }
@@ -282,7 +326,7 @@ Describe 'New-BatchRepoContext' {
     It 'stays within the token budget' {
         New-TestRepo {
             Write-RepoFile 'src/core.ts' 'export function computeTotals(x) { return x; }'
-            1..30 | ForEach-Object { Write-RepoFile "src/use$_.ts" ((1..80 | ForEach-Object { "const v$_ = computeTotals($_); // padding padding padding" }) -join "`n") }
+            1..20 | ForEach-Object { Write-RepoFile "src/use$_.ts" ((1..80 | ForEach-Object { "const v$_ = computeTotals($_); // padding padding padding" }) -join "`n") }
         } {
             Write-RepoFile 'src/core.ts' 'export function computeTotals(x, y) { return x + y; }'
         }
@@ -294,6 +338,20 @@ Describe 'New-BatchRepoContext' {
         $context.Text.Length | Should -BeLessOrEqual (2000 * 3.5)
         $context.Files | Should -BeGreaterThan 0
         $context.Files | Should -BeLessOrEqual 12
+    }
+
+    It 'shows at most three callers per symbol' {
+        New-TestRepo {
+            Write-RepoFile 'src/core.ts' 'export function computeTotals(x) { return x; }'
+            1..6 | ForEach-Object { Write-RepoFile "src/use$_.ts" "const v = computeTotals($_);" }
+        } {
+            Write-RepoFile 'src/core.ts' 'export function computeTotals(x, y) { return x + y; }'
+        }
+        $context = Invoke-InRepo {
+            $changes = Get-CodeChanges -TargetBranch 'refs/heads/main' -SourceBranch 'refs/heads/feature'
+            New-BatchRepoContext -Batch $changes.Batches[0] -Options (New-RepoContextOptions -SourceBranch 'refs/heads/feature' -MaxTokens 6000)
+        }
+        $context.Files | Should -Be 3
     }
 
     It 'returns nothing when the budget is zero' {
