@@ -77,7 +77,7 @@ parameters:
   - name: reviewDefaultExcludes
     type: boolean
     default: true
-  # Set to true to send read-only context from the rest of the repository with each batch: a map of the
+  # Experimental. Set to true to send read-only context from the rest of the repository with each batch: a map of the
   # repository's files, plus excerpts of files that use what the pull request changes and of files the changed
   # files import. It is read from the pipeline's own checkout with git (no extra access) and costs extra prompt
   # tokens, up to reviewContextMaxTokens per batch. The model still only comments on the diff.

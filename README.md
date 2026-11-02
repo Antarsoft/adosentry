@@ -57,7 +57,7 @@ PullPicket is a pipeline stage template that sends the changes in a pull request
 - Uses a shared base prompt plus a short rules file that you keep in your own repository, so each repository describes its own stack and conventions.
 - Splits large pull requests into batches, skips lockfiles, generated output and binaries, and stays within per-file and per-batch token limits.
 - Remembers its own earlier comments on the pull request, so a new push does not repeat a finding that is already open.
-- Optionally reads related code from the rest of the repository (a file map, the callers of what changed, the files it imports) so the review can catch a change that breaks another file. Read-only, from the pipeline's own checkout, within a token budget.
+- Experimental, off by default: reads related code from the rest of the repository (a file map, the callers of what changed, the files it imports) so the review can catch a change that breaks another file. Read-only, from the pipeline's own checkout, within a token budget.
 - Treats the diff as untrusted data: text in the code that tries to steer the reviewer is flagged instead of followed.
 - Signs in to the model and to Azure DevOps with the identity of an Azure Resource Manager service connection (Entra ID). No API keys are needed by default.
 - Optionally sends one event per run (tokens, comments, outcome, latency) to a small metrics API with a dashboard.
@@ -314,7 +314,7 @@ The stage takes its settings as template parameters. The ones you are most likel
 | `metricsAuth` | `entra` | `entra` sends a token for `aiMetricsApiResource` from the service connection; `key` sends `aiMetricsApiKey` as `X-Api-Key`. |
 | `reviewPathSpec` / `reviewExcludePathSpec` | empty | Limit the review to, or exclude, paths. |
 | `reviewDefaultExcludes` | `true` | Skip lockfiles, minified files, images, fonts, archives and binaries. |
-| `reviewRepoContext` | `false` | Send related code from the rest of the repository with each batch (up to `reviewContextMaxTokens`, default 12000). |
+| `reviewRepoContext` | `false` | Experimental. Send related code from the rest of the repository with each batch (up to `reviewContextMaxTokens`, default 12000). |
 
 Every parameter, with its type, default and allowed values, is in the [parameter reference](docs/parameters.md). It is generated from the comments in [`ai-code-review/stage-template.yml`](ai-code-review/stage-template.yml), and CI fails if the two drift apart.
 
