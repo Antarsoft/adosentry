@@ -1,0 +1,19 @@
+{
+  "description": "A comment preview calls a paid AI API straight from the browser with a VITE_ key, and renders the returned HTML unsanitised.",
+  "findings": [
+    {
+      "id": "secret-in-bundle",
+      "file": "/src/features/comments/CommentPreview.tsx",
+      "anchor": "import.meta.env.VITE_AI_API_KEY",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "unsanitised-html",
+      "file": "/src/features/comments/CommentPreview.tsx",
+      "anchor": "dangerouslySetInnerHTML={{ __html: html }}",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    }
+  ]
+}

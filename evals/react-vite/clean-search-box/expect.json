@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a debounced search box that aborts stale requests, checks res.ok and cleans up its timer.",
+  "findings": []
+}
