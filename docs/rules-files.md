@@ -36,13 +36,13 @@ Keep a file between about 30 and 60 numbered rules at most. Every rule is sent w
 
 ## The quality bar for shipped files
 
-A rules file in `examples/rules/` ships only when its samples in [`evals/`](../evals) pass on both a large model and a small one, at default settings:
+A rules file in `examples/rules/` ships only when its samples in [`evals/`](../evals) pass on a large model at default settings, in each of three runs:
 
 - every planted `CRITICAL` bug is caught at `CRITICAL`,
 - at least 80% of planted `WARNING` bugs are caught at `WARNING` or above,
 - no clean sample gets a `CRITICAL` or `WARNING` comment.
 
-Clients choose their own model and reasoning effort, so a rule that only works on the largest model is too vague and gets rewritten.
+Every file is also run on a small model, and its scores are published per stack in [Rules file test results](rules-results.md) instead of being held to the same bar. Clients choose their own model and reasoning effort, so when a small model misses a rule that the large one catches, check whether the rule is too vague before blaming the model.
 
 ## Samples
 

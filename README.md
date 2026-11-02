@@ -304,7 +304,7 @@ PullPicket ships a tested rules file for each of these stacks. Copy the closest 
 | Systems | [C++](examples/rules/cpp.rules.md), [Rust](examples/rules/rust.rules.md) |
 | Infrastructure and data | [Terraform](examples/rules/terraform.rules.md), [Bicep](examples/rules/bicep.rules.md), [Kubernetes and Helm](examples/rules/kubernetes.rules.md), [Dockerfiles and Compose](examples/rules/docker.rules.md), [SQL migrations](examples/rules/sql-migrations.rules.md) |
 
-Each file has sample pull requests in [`evals/`](evals), some with planted bugs and some clean, and must catch the bugs without commenting on the clean ones on both a large and a small model before it ships. [Writing and testing rules files](docs/rules-files.md) explains the layout, the quality bar, and how to run the tests against your own model with `tools/Invoke-RulesEval.ps1`.
+Each file has sample pull requests in [`evals/`](evals), some with planted bugs and some clean, and must catch the bugs without commenting on the clean ones on a large model before it ships. Scores for a large and a small model are in [Rules file test results](docs/rules-results.md). [Writing and testing rules files](docs/rules-files.md) explains the layout, the quality bar, and how to run the tests against your own model with `tools/Invoke-RulesEval.ps1`.
 
 The rules file is excluded from its own review. In `legacy` mode the file you pass is the complete prompt and the base prompt is not used.
 
@@ -355,6 +355,7 @@ To connect a pipeline, create a variable group with `aiMetricsApiUrl` and `aiMet
 | [Troubleshooting](docs/troubleshooting.md) | Skipped stages, missing comments, 401/403/404 from the model, agent pool overrides. |
 | [Metrics guide](docs/metrics.md) | Deploying the metrics API, both auth modes, the dashboard, pricing and local runs. |
 | [Rules files](docs/rules-files.md) | The layout and quality bar for rules files, and how to test one against your model. |
+| [Rules file test results](docs/rules-results.md) | Per-stack scores for every shipped rules file on a large and a small model. |
 | [Metrics infrastructure](infra/README.md) | Bicep deployment, Entra app registrations and teardown. |
 | [Security](SECURITY.md) | What the model and the metrics service receive, hardening, and private reporting. |
 | [Contributing](CONTRIBUTING.md) | Local setup, checks, commit style and DCO sign-off. |
