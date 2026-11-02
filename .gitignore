@@ -20,3 +20,6 @@ coverage.out
 *.swp
 .DS_Store
 Thumbs.db
+
+# Rules eval prompts and answers (tools/Invoke-RulesEval.ps1)
+/evals/.work/
