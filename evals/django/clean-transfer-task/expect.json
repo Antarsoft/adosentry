@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a scoped, atomic transfer view using select_for_update and on_commit for the Celery task.",
+  "findings": []
+}

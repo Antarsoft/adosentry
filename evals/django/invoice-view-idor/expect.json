@@ -1,0 +1,26 @@
+{
+  "description": "A new invoice detail view looks the invoice up by pk only, a search uses an f-string in raw SQL, and notes are marked safe.",
+  "findings": [
+    {
+      "id": "idor",
+      "file": "/billing/views.py",
+      "anchor": "invoice = get_object_or_404(Invoice, pk=pk)",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "mark-safe-user-data",
+      "file": "/billing/views.py",
+      "anchor": "notes = mark_safe(invoice.customer_notes)",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "raw-sql-fstring",
+      "file": "/billing/views.py",
+      "anchor": "f\"SELECT id, number FROM billing_invoice",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    }
+  ]
+}
