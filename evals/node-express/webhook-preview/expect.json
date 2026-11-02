@@ -1,0 +1,26 @@
+{
+  "description": "A link-preview endpoint fetches any URL from the body, filters Mongo by raw body values, and logs request headers.",
+  "findings": [
+    {
+      "id": "ssrf",
+      "file": "/src/routes/links.ts",
+      "anchor": "const page = await fetch(req.body.url);",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "nosql-injection",
+      "file": "/src/routes/links.ts",
+      "anchor": "url: req.body.url }).lean();",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "logs-headers",
+      "file": "/src/routes/links.ts",
+      "anchor": "logger.info({ headers: req.headers }",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a profile update route with auth, zod validation, an explicit field list and a parameterised query.",
+  "findings": []
+}

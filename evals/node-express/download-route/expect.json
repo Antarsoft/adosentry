@@ -1,0 +1,26 @@
+{
+  "description": "A new attachment download route trusts jwt.decode, joins the filename from the query into a path, and keeps running after sending a 404.",
+  "findings": [
+    {
+      "id": "jwt-decode-auth",
+      "file": "/src/routes/attachments.ts",
+      "anchor": "jwt.decode(String(req.query.token))",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "path-traversal",
+      "file": "/src/routes/attachments.ts",
+      "anchor": "path.join(UPLOAD_ROOT, claims.sub, String(req.query.name))",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "missing-return",
+      "file": "/src/routes/attachments.ts",
+      "anchor": "res.status(404).json({ error: 'Not found' });",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    }
+  ]
+}
