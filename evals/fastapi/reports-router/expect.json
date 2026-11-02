@@ -1,0 +1,26 @@
+{
+  "description": "A new reports route has no auth dependency, interpolates a query parameter into text(), and calls requests inside async def.",
+  "findings": [
+    {
+      "id": "no-auth-dependency",
+      "file": "/app/routers/reports.py",
+      "anchor": "async def by_region(tenant_id: str, region: str",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "sql-fstring",
+      "file": "/app/routers/reports.py",
+      "anchor": "text(f\"SELECT region, sum(total)",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "blocking-requests",
+      "file": "/app/routers/reports.py",
+      "anchor": "rates = requests.get(",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}

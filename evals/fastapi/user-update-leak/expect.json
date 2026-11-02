@@ -1,0 +1,26 @@
+{
+  "description": "A user update route applies the whole payload with setattr, returns the ORM object with no response model, and forgets to await the audit coroutine.",
+  "findings": [
+    {
+      "id": "mass-assignment-role",
+      "file": "/app/routers/users.py",
+      "anchor": "setattr(user, field, value)",
+      "minSeverity": "CRITICAL",
+      "tolerance": 3
+    },
+    {
+      "id": "orm-response-leak",
+      "file": "/app/routers/users.py",
+      "anchor": "return user",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "missing-await",
+      "file": "/app/routers/users.py",
+      "anchor": "record_event(session, \"user.updated\", user.id)",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}
