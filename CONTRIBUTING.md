@@ -13,7 +13,8 @@ Please report security problems privately as described in [SECURITY.md](SECURITY
 | `infra/` | Bicep and Entra scripts for the metrics service | Bicep build and lint, shellcheck |
 | `tools/` | Maintenance scripts, such as the parameter reference generator | PowerShell 7; PSScriptAnalyzer |
 | `docs/` | Guides linked from the README | |
-| `examples/` | Example pipeline and rules files | |
+| `examples/` | Example pipeline and rules files | Samples in `evals/`; see [docs/rules-files.md](docs/rules-files.md) |
+| `evals/` | Sample pull requests that test the rules files | Pester checks they are well formed |
 
 ## Local setup
 

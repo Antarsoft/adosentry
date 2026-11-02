@@ -233,7 +233,8 @@ Part 1: the review stage
 7. Rules file. Copy the closest file from PullPicket's `examples/rules/` to
    `pipelines/ai-code-review/<repo>.rules.md` in my repository and adapt it to my stack: one sentence on
    the stack, numbered rules with severities, and a "conventions to respect" section for what tooling
-   already enforces. Keep it short. Show it to me before you commit.
+   already enforces. Keep the shipped rules unless they clearly do not apply, and add rules for
+   patterns specific to my repository. Keep it short. Show it to me before you commit.
 8. Pipeline. Add the stage to my PR pipeline, based on PullPicket's `examples/pipelines/pr-pipeline.yml`.
    The repository resource alias must be exactly `templates`. Set `azureSubscription`, `promptFile`,
    `promptMode: rules` and `foundryAuth: entra`. For a classic Azure OpenAI resource also set
@@ -294,7 +295,16 @@ A good rules file is short and specific:
 - numbered rules grouped by topic, each with the severity it deserves,
 - a "conventions to respect" section listing what tooling already enforces (formatting, import order) so the reviewer leaves it alone.
 
-Examples: [Next.js](examples/rules/nextjs.rules.md), [NestJS](examples/rules/nestjs.rules.md), [Terraform](examples/rules/terraform.rules.md).
+PullPicket ships a tested rules file for each of these stacks. Copy the closest one and adapt it:
+
+| Area | Rules files |
+| --- | --- |
+| Web front ends | [Next.js](examples/rules/nextjs.rules.md), [React with Vite](examples/rules/react-vite.rules.md), [Angular](examples/rules/angular.rules.md), [Vue](examples/rules/vue.rules.md) |
+| APIs and services | [NestJS](examples/rules/nestjs.rules.md), [Node.js with Express](examples/rules/node-express.rules.md), [ASP.NET Core](examples/rules/aspnetcore.rules.md), [Spring Boot](examples/rules/spring-boot.rules.md), [Go](examples/rules/go.rules.md), [Django](examples/rules/django.rules.md), [FastAPI](examples/rules/fastapi.rules.md) |
+| Systems | [C++](examples/rules/cpp.rules.md), [Rust](examples/rules/rust.rules.md) |
+| Infrastructure and data | [Terraform](examples/rules/terraform.rules.md), [Bicep](examples/rules/bicep.rules.md), [Kubernetes and Helm](examples/rules/kubernetes.rules.md), [Dockerfiles and Compose](examples/rules/docker.rules.md), [SQL migrations](examples/rules/sql-migrations.rules.md) |
+
+Each file has sample pull requests in [`evals/`](evals), some with planted bugs and some clean, and must catch the bugs without commenting on the clean ones on both a large and a small model before it ships. [Writing and testing rules files](docs/rules-files.md) explains the layout, the quality bar, and how to run the tests against your own model with `tools/Invoke-RulesEval.ps1`.
 
 The rules file is excluded from its own review. In `legacy` mode the file you pass is the complete prompt and the base prompt is not used.
 
@@ -344,6 +354,7 @@ To connect a pipeline, create a variable group with `aiMetricsApiUrl` and `aiMet
 | [Parameter reference](docs/parameters.md) | Every stage parameter with its type, default and allowed values. |
 | [Troubleshooting](docs/troubleshooting.md) | Skipped stages, missing comments, 401/403/404 from the model, agent pool overrides. |
 | [Metrics guide](docs/metrics.md) | Deploying the metrics API, both auth modes, the dashboard, pricing and local runs. |
+| [Rules files](docs/rules-files.md) | The layout and quality bar for rules files, and how to test one against your model. |
 | [Metrics infrastructure](infra/README.md) | Bicep deployment, Entra app registrations and teardown. |
 | [Security](SECURITY.md) | What the model and the metrics service receive, hardening, and private reporting. |
 | [Contributing](CONTRIBUTING.md) | Local setup, checks, commit style and DCO sign-off. |
@@ -354,11 +365,12 @@ To connect a pipeline, create a variable group with `aiMetricsApiUrl` and `aiMet
 | Path | What it is |
 | --- | --- |
 | `ai-code-review/` | The review engine: PowerShell module, stage template, base prompt and Pester tests. |
-| `examples/` | An example PR pipeline and example rules files. |
+| `examples/` | An example PR pipeline and tested rules files for common stacks. |
+| `evals/` | Sample pull requests that test the rules files. |
 | `metrics/` | Optional metrics ingestion API and dashboard (Go, Cosmos DB). |
 | `infra/` | Bicep and Entra setup scripts for the metrics infrastructure. |
 | `docs/` | Parameter reference, troubleshooting and the metrics guide. |
-| `tools/` | Maintenance scripts, such as the parameter reference generator. |
+| `tools/` | Maintenance scripts: the parameter reference generator and the rules-file test runner. |
 | `.github/` | GitHub Actions CI and Dependabot configuration. |
 | `.azuredevops/` | Azure Pipelines CI for the engine, for teams that host a copy in Azure Repos. |
 
