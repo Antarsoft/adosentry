@@ -1,0 +1,4 @@
+{
+  "description": "Clean: an async config loader with typed errors, tokio::fs and a range-checked timeout.",
+  "findings": []
+}

@@ -13,7 +13,12 @@
       "file": "/src/features/comments/CommentPreview.tsx",
       "anchor": "dangerouslySetInnerHTML={{ __html: html }}",
       "minSeverity": "CRITICAL",
-      "tolerance": 2
+      "tolerance": 2,
+      "alsoAt": [
+        {
+          "anchor": "setHtml(data.html);"
+        }
+      ]
     }
   ]
 }

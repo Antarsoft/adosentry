@@ -20,7 +20,9 @@ export function SearchBox({ onPick }: { onPick: (id: string) => void }) {
         setResults((await res.json()) as Result[]);
         setError(null);
       } catch (e) {
-        if ((e as Error).name !== 'AbortError') setError('Search is unavailable right now.');
+        if ((e as Error).name === 'AbortError') return;
+        setResults([]);
+        setError('Search is unavailable right now.');
       }
     }, 250);
     return () => {

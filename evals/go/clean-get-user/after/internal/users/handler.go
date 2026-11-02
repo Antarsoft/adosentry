@@ -18,6 +18,8 @@ type Handler struct {
 	DB *sql.DB
 }
 
+// Get returns a user's public profile. Routes are wrapped in RequireMember, and any member of
+// a tenant may view the profiles of the other members.
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	user, err := h.find(r, r.PathValue("id"))
 	switch {
@@ -29,10 +31,14 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not load user", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(user); err != nil {
-		slog.WarnContext(r.Context(), "encode user", "err", err)
+	body, err := json.Marshal(user)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "encode user", "err", err)
+		http.Error(w, "could not load user", http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(body)
 }
 
 func (h *Handler) find(r *http.Request, id string) (User, error) {

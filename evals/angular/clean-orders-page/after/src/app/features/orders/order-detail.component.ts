@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
-import { catchError, map, of, switchMap } from 'rxjs';
+import { catchError, map, of, switchMap, tap } from 'rxjs';
 import { OrdersApi, Order } from './orders.api';
 
 @Component({
@@ -27,6 +27,7 @@ export class OrderDetailComponent {
   readonly order = toSignal(
     this.route.paramMap.pipe(
       map((p) => p.get('id') ?? ''),
+      tap(() => this.error.set(null)),
       switchMap((id) =>
         this.api.get(id).pipe(
           catchError(() => {

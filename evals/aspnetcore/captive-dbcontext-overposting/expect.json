@@ -6,7 +6,13 @@
       "file": "/src/Api/Program.cs",
       "anchor": "builder.Services.AddSingleton<PriceCache>();",
       "minSeverity": "CRITICAL",
-      "tolerance": 1
+      "tolerance": 1,
+      "alsoAt": [
+        {
+          "file": "/src/Api/Services/PriceCache.cs",
+          "anchor": "public sealed class PriceCache(ShopDbContext db"
+        }
+      ]
     },
     {
       "id": "httpclient-per-call",

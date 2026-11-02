@@ -20,7 +20,12 @@
       "file": "/src/main/java/com/example/crm/reporting/ReportService.java",
       "anchor": "this.currentTenant = tenantId;",
       "minSeverity": "CRITICAL",
-      "tolerance": 4
+      "tolerance": 4,
+      "alsoAt": [
+        {
+          "anchor": "private String currentTenant;"
+        }
+      ]
     }
   ]
 }

@@ -6,8 +6,9 @@ export function useUserSearch(query: Ref<string>) {
   const results = ref<UserHit[]>([]);
   const error = ref<string | null>(null);
 
-  watch(query, async (q) => {
-    if (q.trim().length < 2) {
+  watch(query, async (raw) => {
+    const q = raw.trim();
+    if (q.length < 2) {
       results.value = [];
       return;
     }

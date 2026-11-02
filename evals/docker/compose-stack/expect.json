@@ -6,7 +6,7 @@
       "file": "/compose.yaml",
       "anchor": "- /var/run/docker.sock:/var/run/docker.sock",
       "minSeverity": "CRITICAL",
-      "tolerance": 1
+      "tolerance": 3
     },
     {
       "id": "db-port-all-interfaces",

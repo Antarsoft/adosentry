@@ -13,7 +13,12 @@
       "file": "/src/reports/reports.service.ts",
       "anchor": "this.tenantId = tenantId;",
       "minSeverity": "CRITICAL",
-      "tolerance": 4
+      "tolerance": 4,
+      "alsoAt": [
+        {
+          "anchor": "private tenantId?: string;"
+        }
+      ]
     },
     {
       "id": "floating-audit",

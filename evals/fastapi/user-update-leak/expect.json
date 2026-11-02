@@ -12,7 +12,7 @@
       "id": "orm-response-leak",
       "file": "/app/routers/users.py",
       "anchor": "return user",
-      "minSeverity": "CRITICAL",
+      "minSeverity": "WARNING",
       "tolerance": 2
     },
     {

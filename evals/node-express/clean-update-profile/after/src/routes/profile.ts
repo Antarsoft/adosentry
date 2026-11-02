@@ -26,7 +26,7 @@ profile.patch('/', requireAuth, async (req, res, next) => {
   }
   try {
     const { rows } = await pool.query(
-      'UPDATE users SET display_name = $1, bio = $2 WHERE id = $3 RETURNING id, display_name, bio',
+      'UPDATE users SET display_name = $1, bio = COALESCE($2, bio) WHERE id = $3 RETURNING id, display_name, bio',
       [parsed.data.displayName, parsed.data.bio ?? null, req.user!.id],
     );
     res.json(rows[0]);

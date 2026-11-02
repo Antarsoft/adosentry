@@ -1,5 +1,5 @@
 {
-  "description": "A cleanup migration drops a populated column, deactivates rows with an UPDATE that has no WHERE, and builds an index without CONCURRENTLY.",
+  "description": "A cleanup migration drops a populated column, deactivates customers with an UPDATE that has no WHERE, and builds an index without CONCURRENTLY.",
   "findings": [
     {
       "id": "drop-column",
@@ -11,7 +11,7 @@
     {
       "id": "update-no-where",
       "file": "/db/migrations/V42__customers_cleanup.sql",
-      "anchor": "UPDATE customers SET terms_accepted_at = NULL;",
+      "anchor": "UPDATE customers SET status = 'inactive';",
       "minSeverity": "CRITICAL",
       "tolerance": 1
     },

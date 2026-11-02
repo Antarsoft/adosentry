@@ -10,7 +10,7 @@ resource "azurerm_key_vault_secret" "db_password" {
 }
 
 resource "azurerm_role_assignment" "api_secrets_user" {
-  scope                = azurerm_key_vault.main.id
+  scope                = azurerm_key_vault_secret.db_password.resource_versionless_id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azurerm_linux_web_app.api.identity[0].principal_id
 }

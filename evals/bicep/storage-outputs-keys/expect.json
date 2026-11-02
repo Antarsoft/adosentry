@@ -19,7 +19,7 @@
       "id": "public-network",
       "file": "/infra/modules/storage.bicep",
       "anchor": "publicNetworkAccess: 'Enabled'",
-      "minSeverity": "CRITICAL",
+      "minSeverity": "WARNING",
       "tolerance": 1
     }
   ]

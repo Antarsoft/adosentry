@@ -6,7 +6,13 @@
       "file": "/deploy/reporter/rbac.yaml",
       "anchor": "name: cluster-admin",
       "minSeverity": "CRITICAL",
-      "tolerance": 2
+      "tolerance": 2,
+      "alsoAt": [
+        {
+          "anchor": "kind: ClusterRoleBinding",
+          "tolerance": 2
+        }
+      ]
     },
     {
       "id": "secret-in-configmap",

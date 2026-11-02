@@ -13,7 +13,12 @@
       "file": "/deploy/build-agent/deployment.yaml",
       "anchor": "path: /var/run/docker.sock",
       "minSeverity": "CRITICAL",
-      "tolerance": 2
+      "tolerance": 2,
+      "alsoAt": [
+        {
+          "anchor": "mountPath: /var/run/docker.sock"
+        }
+      ]
     },
     {
       "id": "latest-tag",
