@@ -1,0 +1,33 @@
+{
+  "description": "A build agent Deployment runs privileged, mounts the host's container runtime socket, uses the latest tag and has no resource limits.",
+  "findings": [
+    {
+      "id": "privileged",
+      "file": "/deploy/build-agent/deployment.yaml",
+      "anchor": "privileged: true",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "docker-sock",
+      "file": "/deploy/build-agent/deployment.yaml",
+      "anchor": "path: /var/run/docker.sock",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "latest-tag",
+      "file": "/deploy/build-agent/deployment.yaml",
+      "anchor": "image: registry.example.com/ci/build-agent:latest",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "no-resources",
+      "file": "/deploy/build-agent/deployment.yaml",
+      "anchor": "- name: agent",
+      "minSeverity": "WARNING",
+      "tolerance": 3
+    }
+  ]
+}

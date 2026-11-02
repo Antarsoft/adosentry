@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reporter-config
+  namespace: reporting
+data:
+  DB_HOST: reporting-db.reporting.svc
+  DB_NAME: reports

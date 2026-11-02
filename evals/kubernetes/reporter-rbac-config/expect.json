@@ -1,0 +1,27 @@
+{
+  "description": "A reporting job gets cluster-admin, its database password goes into a ConfigMap, and the Deployment selector is changed.",
+  "findings": [
+    {
+      "id": "cluster-admin",
+      "file": "/deploy/reporter/rbac.yaml",
+      "anchor": "name: cluster-admin",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "secret-in-configmap",
+      "file": "/deploy/reporter/config.yaml",
+      "anchor": "DB_PASSWORD: \"r3port1ng-Pr0d\"",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "selector-change",
+      "file": "/deploy/reporter/deployment.yaml",
+      "anchor": "app.kubernetes.io/name: reporter",
+      "minSeverity": "WARNING",
+      "tolerance": 2,
+      "occurrence": 1
+    }
+  ]
+}
