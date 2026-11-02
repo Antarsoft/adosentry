@@ -1,0 +1,26 @@
+{
+  "description": "A webhook dispatcher writes a shared map from goroutines, uses http.Post with the default client, and detaches from the request context.",
+  "findings": [
+    {
+      "id": "map-race",
+      "file": "/internal/webhooks/dispatch.go",
+      "anchor": "d.Failures[sub.ID]++",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "default-client-no-timeout",
+      "file": "/internal/webhooks/dispatch.go",
+      "anchor": "resp, err := http.Post(sub.URL",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "background-context",
+      "file": "/internal/webhooks/dispatch.go",
+      "anchor": "ctx := context.Background()",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}
