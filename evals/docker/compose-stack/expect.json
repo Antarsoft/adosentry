@@ -1,0 +1,33 @@
+{
+  "description": "A Compose stack publishes Postgres on all interfaces with a literal password, mounts the Docker socket, and the worker image uses latest.",
+  "findings": [
+    {
+      "id": "docker-sock",
+      "file": "/compose.yaml",
+      "anchor": "- /var/run/docker.sock:/var/run/docker.sock",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "db-port-all-interfaces",
+      "file": "/compose.yaml",
+      "anchor": "- \"5432:5432\"",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "literal-password",
+      "file": "/compose.yaml",
+      "anchor": "POSTGRES_PASSWORD: Sup3rS3cret-db",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "latest-tag",
+      "file": "/compose.yaml",
+      "anchor": "image: registry.example.com/jobs/worker:latest",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}

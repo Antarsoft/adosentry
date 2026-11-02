@@ -1,0 +1,26 @@
+{
+  "description": "The API image takes a registry token as a build ARG, installs a tool with curl -k piped to sh, and runs as root.",
+  "findings": [
+    {
+      "id": "build-arg-secret",
+      "file": "/Dockerfile",
+      "anchor": "RUN echo \"//registry.example.com/:_authToken=${NPM_TOKEN}\"",
+      "minSeverity": "CRITICAL",
+      "tolerance": 3
+    },
+    {
+      "id": "curl-k-pipe-sh",
+      "file": "/Dockerfile",
+      "anchor": "curl -ksSL https://tools.example.com/install-agent.sh",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "runs-as-root",
+      "file": "/Dockerfile",
+      "anchor": "CMD node dist/server.js",
+      "minSeverity": "WARNING",
+      "tolerance": 4
+    }
+  ]
+}
