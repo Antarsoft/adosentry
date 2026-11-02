@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a new guarded POST route with a validated DTO, an explicit field mapping and a transaction.",
+  "findings": []
+}
