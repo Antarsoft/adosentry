@@ -1,0 +1,26 @@
+{
+  "description": "The production database server is renamed, and a role assignment grants Owner at subscription scope with a newGuid() name.",
+  "findings": [
+    {
+      "id": "rename-stateful",
+      "file": "/infra/main.bicep",
+      "anchor": "serverName: 'sql-orders-core-${environment}'",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "owner-subscription",
+      "file": "/infra/main.bicep",
+      "anchor": "roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8e3af657",
+      "minSeverity": "WARNING",
+      "tolerance": 4
+    },
+    {
+      "id": "nondeterministic-name",
+      "file": "/infra/main.bicep",
+      "anchor": "name: newGuid()",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}

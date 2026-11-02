@@ -1,0 +1,26 @@
+{
+  "description": "A storage module opens public access, takes a SAS signing key parameter without @secure(), and outputs the account key.",
+  "findings": [
+    {
+      "id": "output-listkeys",
+      "file": "/infra/modules/storage.bicep",
+      "anchor": "output primaryKey string = storage.listKeys()",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "param-not-secure",
+      "file": "/infra/modules/storage.bicep",
+      "anchor": "param partnerSigningKey string",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "public-network",
+      "file": "/infra/modules/storage.bicep",
+      "anchor": "publicNetworkAccess: 'Enabled'",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    }
+  ]
+}
