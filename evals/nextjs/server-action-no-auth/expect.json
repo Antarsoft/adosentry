@@ -1,0 +1,19 @@
+{
+  "description": "A new Server Action deletes a project by id from FormData with no session or ownership check, and a redirect is called inside try/catch.",
+  "findings": [
+    {
+      "id": "delete-no-auth",
+      "file": "/app/projects/[id]/actions.ts",
+      "anchor": "export async function deleteProject",
+      "minSeverity": "CRITICAL",
+      "tolerance": 3
+    },
+    {
+      "id": "redirect-in-try",
+      "file": "/app/projects/[id]/actions.ts",
+      "anchor": "redirect('/projects');",
+      "minSeverity": "WARNING",
+      "tolerance": 3
+    }
+  ]
+}

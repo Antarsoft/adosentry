@@ -1,0 +1,26 @@
+{
+  "description": "The production storage account is renamed (forces replacement), opened to public blob access, and its TLS floor lowered.",
+  "findings": [
+    {
+      "id": "forces-replacement",
+      "file": "/infra/storage.tf",
+      "anchor": "name                            = \"stcontosoanalyticsprod\"",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "public-blobs",
+      "file": "/infra/storage.tf",
+      "anchor": "allow_nested_items_to_be_public = true",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "tls-downgrade",
+      "file": "/infra/storage.tf",
+      "anchor": "min_tls_version                 = \"TLS1_0\"",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}

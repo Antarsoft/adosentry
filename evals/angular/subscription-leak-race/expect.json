@@ -1,0 +1,26 @@
+{
+  "description": "A customer search component subscribes without teardown, uses mergeMap for typeahead, and mutates an OnPush input in place.",
+  "findings": [
+    {
+      "id": "subscribe-leak",
+      "file": "/src/app/features/customers/customer-search.component.ts",
+      "anchor": ".subscribe((list) => (this.results = list));",
+      "minSeverity": "WARNING",
+      "tolerance": 6
+    },
+    {
+      "id": "mergemap-race",
+      "file": "/src/app/features/customers/customer-search.component.ts",
+      "anchor": "mergeMap((q) => this.api.search(q)),",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    },
+    {
+      "id": "onpush-input-mutation",
+      "file": "/src/app/features/customers/customer-search.component.ts",
+      "anchor": "this.pinned.push(customer);",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    }
+  ]
+}

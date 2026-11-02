@@ -1,0 +1,31 @@
+{
+  "description": "Configuration exposes every actuator endpoint and commits a database password; a singleton service keeps the caller's tenant in a field.",
+  "findings": [
+    {
+      "id": "committed-password",
+      "file": "/src/main/resources/application.yml",
+      "anchor": "password: Crm-Prod-2026!",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "actuator-exposed",
+      "file": "/src/main/resources/application.yml",
+      "anchor": "include: \"*\"",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "singleton-request-state",
+      "file": "/src/main/java/com/example/crm/reporting/ReportService.java",
+      "anchor": "this.currentTenant = tenantId;",
+      "minSeverity": "CRITICAL",
+      "tolerance": 4,
+      "alsoAt": [
+        {
+          "anchor": "private String currentTenant;"
+        }
+      ]
+    }
+  ]
+}

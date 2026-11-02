@@ -1,0 +1,19 @@
+{
+  "description": "The auth interceptor now adds the bearer token to every request, and a release-notes component bypasses sanitisation for HTML from the API.",
+  "findings": [
+    {
+      "id": "token-to-any-host",
+      "file": "/src/app/core/auth.interceptor.ts",
+      "anchor": "return next(token ? req.clone",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "bypass-sanitizer",
+      "file": "/src/app/features/release-notes/release-notes.component.ts",
+      "anchor": "bypassSecurityTrustHtml(r.html)",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    }
+  ]
+}

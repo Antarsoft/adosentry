@@ -9,10 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tested rules files for 18 stacks in `examples/rules/`: Next.js, React with Vite, Angular, Vue, NestJS, Node.js with Express, ASP.NET Core, Spring Boot, Go, Django, FastAPI, C++, Rust, Terraform, Bicep, Kubernetes and Helm, Dockerfiles and Compose, and SQL migrations. The Next.js, NestJS and Terraform files are rewritten for current framework versions.
+- `evals/`: sample pull requests for every rules file, with planted bugs and clean changes, and `tools/Invoke-RulesEval.ps1`, which sends each sample to a model (Anthropic, OpenAI, Azure OpenAI, or saved answers) with the exact prompt the pipeline builds and scores caught, missed and noisy comments. Pester checks that every sample is well formed.
+- `docs/rules-files.md`: how to write a rules file, and the quality bar a shipped one must pass.
+- `docs/rules-results.md`: per-stack scores for every shipped rules file on Claude Opus 5.5 and Claude Haiku 5.5.
 - README: badges, a feature summary, a diagram of how a run works, a documentation index, and a copy-paste prompt that lets an AI coding agent set up the review stage and, optionally, the metrics dashboard step by step.
 
 ### Changed
 
+- Base prompt: a review no longer includes comments that conclude the code is fine, a question about code outside the diff is `SUGGESTION` at most, and a severity stated by a repository rule is used as stated. Found while testing the rules files against models.
 - The metrics API builds with Go 1.27 (`go.mod` and the Docker builder image `golang:1.27-alpine`). Replaces Dependabot PR #5, which bumped only the Dockerfile.
 - The DCO sign-off CI job skips release pull requests into `main`. Their commits were already checked on their way into `development`, and the history includes commits from before sign-off was required.
 

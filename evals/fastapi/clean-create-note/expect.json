@@ -1,0 +1,4 @@
+{
+  "description": "Clean: an authenticated create route with a narrow request schema, a response model, bound parameters and an async session.",
+  "findings": []
+}

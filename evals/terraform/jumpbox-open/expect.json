@@ -1,0 +1,26 @@
+{
+  "description": "A new jump box NSG allows SSH from the internet, the VM uses a literal admin password, and its identity gets Owner on the subscription.",
+  "findings": [
+    {
+      "id": "ssh-from-internet",
+      "file": "/infra/main.tf",
+      "anchor": "source_address_prefix      = \"*\"",
+      "minSeverity": "CRITICAL",
+      "tolerance": 5
+    },
+    {
+      "id": "literal-password",
+      "file": "/infra/main.tf",
+      "anchor": "admin_password                  = \"Winter2026!Ops\"",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "owner-on-subscription",
+      "file": "/infra/main.tf",
+      "anchor": "role_definition_name = \"Owner\"",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    }
+  ]
+}

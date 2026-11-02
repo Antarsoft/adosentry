@@ -1,0 +1,4 @@
+{
+  "description": "Clean: the expand step of a column rename, with a nullable column, a concurrent index, a NOT VALID constraint and lock_timeout.",
+  "findings": []
+}

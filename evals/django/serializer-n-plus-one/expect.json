@@ -1,0 +1,26 @@
+{
+  "description": "A DRF serializer exposes all fields as writable, a list view loops over related objects without prefetching, and a counter is updated with read-modify-write.",
+  "findings": [
+    {
+      "id": "all-fields-writable",
+      "file": "/projects/api.py",
+      "anchor": "fields = \"__all__\"",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "n-plus-one",
+      "file": "/projects/api.py",
+      "anchor": "return [m.user.get_full_name() for m in obj.memberships.all()]",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "counter-race",
+      "file": "/projects/api.py",
+      "anchor": "project.star_count += 1",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}

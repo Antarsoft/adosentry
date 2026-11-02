@@ -1,0 +1,26 @@
+{
+  "description": "A search handler formats the query into SQL, unwraps a parse of user input, and holds a std Mutex guard across an await.",
+  "findings": [
+    {
+      "id": "sql-format",
+      "file": "/src/routes/products.rs",
+      "anchor": "let sql = format!(",
+      "minSeverity": "CRITICAL",
+      "tolerance": 3
+    },
+    {
+      "id": "unwrap-user-input",
+      "file": "/src/routes/products.rs",
+      "anchor": "params.limit.parse().unwrap()",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "mutex-across-await",
+      "file": "/src/routes/products.rs",
+      "anchor": "let mut recent = state.recent_searches.lock().unwrap();",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    }
+  ]
+}

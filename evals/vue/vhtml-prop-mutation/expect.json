@@ -1,0 +1,19 @@
+{
+  "description": "A ticket view renders the API's description HTML with v-html and pushes onto a prop array.",
+  "findings": [
+    {
+      "id": "vhtml-unsanitised",
+      "file": "/src/components/TicketDetail.vue",
+      "anchor": "v-html=\"props.ticket.descriptionHtml\"",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "prop-mutation",
+      "file": "/src/components/TicketDetail.vue",
+      "anchor": "props.ticket.labels.push('triaged');",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    }
+  ]
+}

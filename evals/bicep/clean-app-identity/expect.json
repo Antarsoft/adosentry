@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a web app reads a Key Vault secret through its managed identity with a deterministic, narrowly scoped role assignment.",
+  "findings": []
+}

@@ -1,0 +1,4 @@
+{
+  "description": "Clean: an orders page using route params with switchMap, toSignal for teardown, and error state.",
+  "findings": []
+}

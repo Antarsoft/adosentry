@@ -1,0 +1,26 @@
+{
+  "description": "A new minimal API search endpoint is anonymous, interpolates the query into FromSqlRaw, and blocks on a task.",
+  "findings": [
+    {
+      "id": "anonymous-endpoint",
+      "file": "/src/Api/Endpoints/OrderEndpoints.cs",
+      "anchor": "}).AllowAnonymous();",
+      "minSeverity": "CRITICAL",
+      "tolerance": 10
+    },
+    {
+      "id": "sql-injection",
+      "file": "/src/Api/Endpoints/OrderEndpoints.cs",
+      "anchor": ".FromSqlRaw($\"SELECT * FROM Orders",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "blocking-result",
+      "file": "/src/Api/Endpoints/OrderEndpoints.cs",
+      "anchor": "rates.GetRateAsync(\"EUR\").Result;",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}

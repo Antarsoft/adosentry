@@ -1,0 +1,19 @@
+{
+  "description": "A new PATCH route updates an invoice by id with the raw body, with no ownership scope and no DTO.",
+  "findings": [
+    {
+      "id": "idor-no-owner-scope",
+      "file": "/src/invoices/invoices.controller.ts",
+      "anchor": "return this.invoices.update(id, body);",
+      "minSeverity": "CRITICAL",
+      "tolerance": 3
+    },
+    {
+      "id": "mass-assignment",
+      "file": "/src/invoices/invoices.service.ts",
+      "anchor": "await this.repo.update(id, changes);",
+      "minSeverity": "CRITICAL",
+      "tolerance": 3
+    }
+  ]
+}

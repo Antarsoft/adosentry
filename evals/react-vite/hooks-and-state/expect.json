@@ -1,0 +1,26 @@
+{
+  "description": "An order list gains a conditional hook, an async effect with no stale-result guard, and an in-place state mutation.",
+  "findings": [
+    {
+      "id": "conditional-hook",
+      "file": "/src/features/orders/OrderList.tsx",
+      "anchor": "const [sortDesc, setSortDesc] = useState(true);",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    },
+    {
+      "id": "stale-fetch",
+      "file": "/src/features/orders/OrderList.tsx",
+      "anchor": "fetch(`/api/customers/${customerId}/orders`)",
+      "minSeverity": "WARNING",
+      "tolerance": 3
+    },
+    {
+      "id": "mutate-state",
+      "file": "/src/features/orders/OrderList.tsx",
+      "anchor": "orders.sort(",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    }
+  ]
+}

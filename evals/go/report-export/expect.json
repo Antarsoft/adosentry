@@ -1,0 +1,26 @@
+{
+  "description": "A new export handler builds SQL with Sprintf, never closes rows, and drops the CSV writer's error.",
+  "findings": [
+    {
+      "id": "sql-sprintf",
+      "file": "/internal/reports/handler.go",
+      "anchor": "query := fmt.Sprintf(\"SELECT id, payer, amount",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "rows-not-closed",
+      "file": "/internal/reports/handler.go",
+      "anchor": "rows, err := h.DB.QueryContext(r.Context(), query)",
+      "minSeverity": "WARNING",
+      "tolerance": 4
+    },
+    {
+      "id": "csv-write-error",
+      "file": "/internal/reports/handler.go",
+      "anchor": "out.Write([]string{id, payer",
+      "minSeverity": "WARNING",
+      "tolerance": 3
+    }
+  ]
+}

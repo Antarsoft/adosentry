@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a bounded ring buffer with RAII locking, checked sizes and value semantics.",
+  "findings": []
+}

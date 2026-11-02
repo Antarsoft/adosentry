@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a new Server Action that checks the session and membership, validates with zod, and revalidates the page.",
+  "findings": []
+}

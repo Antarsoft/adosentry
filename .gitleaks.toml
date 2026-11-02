@@ -1,0 +1,10 @@
+# gitleaks configuration: the default rules, plus one allow-list.
+# evals/ holds sample pull requests for testing rules files. Some of them contain made-up
+# secrets on purpose, because a committed secret is one of the bugs the reviewer must catch.
+# Never put a real credential there.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Planted placeholder secrets in rules-file test samples"
+paths = ['''^evals/''']

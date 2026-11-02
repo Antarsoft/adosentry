@@ -1,0 +1,26 @@
+{
+  "description": "A notifications bell destructures a Pinia store's state, starts a polling interval with no cleanup, and puts v-if and v-for on one element.",
+  "findings": [
+    {
+      "id": "lost-reactivity",
+      "file": "/src/components/NotificationBell.vue",
+      "anchor": "const { unread, items } = store;",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "interval-no-cleanup",
+      "file": "/src/components/NotificationBell.vue",
+      "anchor": "setInterval(() => store.refresh(), 15000);",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    },
+    {
+      "id": "vif-with-vfor",
+      "file": "/src/components/NotificationBell.vue",
+      "anchor": "v-for=\"n in items\" v-if=\"!n.read\"",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}

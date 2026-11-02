@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a multi-stage Go build with a BuildKit secret mount, a pinned distroless base and a non-root user.",
+  "findings": []
+}

@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a database password is generated, stored in Key Vault through a sensitive value, and read by the app through its managed identity.",
+  "findings": []
+}

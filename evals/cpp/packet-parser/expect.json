@@ -1,0 +1,26 @@
+{
+  "description": "A packet parser copies a header name into a fixed buffer with strcpy, logs it as a format string, and returns a string_view into a temporary.",
+  "findings": [
+    {
+      "id": "strcpy-overflow",
+      "file": "/src/net/packet.cpp",
+      "anchor": "std::strcpy(label, name);",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "format-string",
+      "file": "/src/net/packet.cpp",
+      "anchor": "std::printf(label);",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "dangling-string-view",
+      "file": "/src/net/packet.cpp",
+      "anchor": "return std::string(\"kind-\") + std::to_string(p.type);",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    }
+  ]
+}

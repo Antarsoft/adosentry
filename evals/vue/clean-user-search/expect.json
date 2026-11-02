@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a search composable that aborts stale requests in onWatcherCleanup and checks res.ok, used with storeToRefs.",
+  "findings": []
+}

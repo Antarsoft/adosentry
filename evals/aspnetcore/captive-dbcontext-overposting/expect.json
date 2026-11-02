@@ -1,0 +1,32 @@
+{
+  "description": "A singleton cache service holds a DbContext and creates an HttpClient per call; a controller binds and saves the entity from the body.",
+  "findings": [
+    {
+      "id": "captive-dbcontext",
+      "file": "/src/Api/Program.cs",
+      "anchor": "builder.Services.AddSingleton<PriceCache>();",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1,
+      "alsoAt": [
+        {
+          "file": "/src/Api/Services/PriceCache.cs",
+          "anchor": "public sealed class PriceCache(ShopDbContext db"
+        }
+      ]
+    },
+    {
+      "id": "httpclient-per-call",
+      "file": "/src/Api/Services/PriceCache.cs",
+      "anchor": "using var http = new HttpClient();",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "overposting",
+      "file": "/src/Api/Controllers/ProfileController.cs",
+      "anchor": "public async Task<IActionResult> Update([FromBody] Customer customer",
+      "minSeverity": "CRITICAL",
+      "tolerance": 4
+    }
+  ]
+}

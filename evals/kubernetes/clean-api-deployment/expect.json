@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a hardened Deployment with pinned image, probes, resources, non-root security context and secrets from an ExternalSecret.",
+  "findings": []
+}

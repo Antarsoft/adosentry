@@ -1,0 +1,26 @@
+{
+  "description": "A customer controller concatenates a native query, binds and saves the entity from the body, and calls a @Transactional method on itself.",
+  "findings": [
+    {
+      "id": "native-query-concat",
+      "file": "/src/main/java/com/example/crm/customer/CustomerService.java",
+      "anchor": "\"SELECT * FROM customers WHERE lower(name) LIKE '%\" + name",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "entity-binding",
+      "file": "/src/main/java/com/example/crm/customer/CustomerController.java",
+      "anchor": "@RequestBody Customer customer",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "transactional-private",
+      "file": "/src/main/java/com/example/crm/customer/CustomerService.java",
+      "anchor": "private CustomerView persistWithAudit",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    }
+  ]
+}

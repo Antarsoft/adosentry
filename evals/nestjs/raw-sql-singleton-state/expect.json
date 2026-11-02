@@ -1,0 +1,31 @@
+{
+  "description": "A report service builds SQL with a template literal, stores the caller's tenant on a singleton field, and fires an audit write without awaiting it.",
+  "findings": [
+    {
+      "id": "sql-injection",
+      "file": "/src/reports/reports.service.ts",
+      "anchor": "`SELECT id, payer, amount FROM payments",
+      "minSeverity": "CRITICAL",
+      "tolerance": 3
+    },
+    {
+      "id": "singleton-request-state",
+      "file": "/src/reports/reports.service.ts",
+      "anchor": "this.tenantId = tenantId;",
+      "minSeverity": "CRITICAL",
+      "tolerance": 4,
+      "alsoAt": [
+        {
+          "anchor": "private tenantId?: string;"
+        }
+      ]
+    },
+    {
+      "id": "floating-audit",
+      "file": "/src/reports/reports.service.ts",
+      "anchor": "this.audit.record('report.search'",
+      "minSeverity": "WARNING",
+      "tolerance": 2
+    }
+  ]
+}

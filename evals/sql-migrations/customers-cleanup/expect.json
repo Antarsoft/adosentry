@@ -1,0 +1,26 @@
+{
+  "description": "A cleanup migration drops a populated column, deactivates customers with an UPDATE that has no WHERE, and builds an index without CONCURRENTLY.",
+  "findings": [
+    {
+      "id": "drop-column",
+      "file": "/db/migrations/V42__customers_cleanup.sql",
+      "anchor": "ALTER TABLE customers DROP COLUMN legacy_phone;",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "update-no-where",
+      "file": "/db/migrations/V42__customers_cleanup.sql",
+      "anchor": "UPDATE customers SET status = 'inactive';",
+      "minSeverity": "CRITICAL",
+      "tolerance": 1
+    },
+    {
+      "id": "index-not-concurrent",
+      "file": "/db/migrations/V42__customers_cleanup.sql",
+      "anchor": "CREATE INDEX idx_customers_email",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}

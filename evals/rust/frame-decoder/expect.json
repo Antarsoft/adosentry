@@ -1,0 +1,26 @@
+{
+  "description": "A frame decoder builds a slice with from_raw_parts from an unchecked length, truncates a length with as, and reads a file with std::fs in async code.",
+  "findings": [
+    {
+      "id": "unsound-from-raw-parts",
+      "file": "/src/codec/frame.rs",
+      "anchor": "let payload = unsafe { slice::from_raw_parts",
+      "minSeverity": "CRITICAL",
+      "tolerance": 2
+    },
+    {
+      "id": "truncating-cast",
+      "file": "/src/codec/frame.rs",
+      "anchor": "(payload.len() as u16).to_be_bytes()",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    },
+    {
+      "id": "blocking-fs-in-async",
+      "file": "/src/codec/frame.rs",
+      "anchor": "let bytes = std::fs::read(path)?;",
+      "minSeverity": "WARNING",
+      "tolerance": 1
+    }
+  ]
+}
