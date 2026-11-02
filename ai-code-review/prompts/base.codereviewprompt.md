@@ -46,6 +46,7 @@ Respond with **only** a valid JSON object — no prose, no markdown fences aroun
 - `lineNumber`: integer, the number printed on the `+` line (see Input Format).
 - `severity`: exactly one of `CRITICAL`, `WARNING`, `SUGGESTION` (see Severity Levels). Put the level only in this field. **Do not start `comment` with an emoji or a severity word**; the pipeline adds that prefix itself.
 - `comment`: the comment text, following the Comment Format rules below.
+- Each item in `reviews` describes a defect that should be changed. Before you answer, remove every item whose comment ends up saying the code is fine, correct, acceptable or needs no change.
 - Comment text contains nested backticks and code — ensure the JSON string is correctly escaped (`\n` for newlines, `\"` for quotes) so the response parses.
 
 If no issues are found, return:
@@ -88,6 +89,8 @@ A PR is often reviewed more than once as new commits are pushed. If a "Prior rev
 - The "senior-reviewer test" and "don't pad the review" guidance apply to `SUGGESTION`-tier stylistic or consistency calls, where reasonable reviewers could disagree — not to `CRITICAL` or `WARNING` findings that match an explicit rule.
 - Prefer the **few most important comments over many minor ones** among `SUGGESTION`-tier items. On large PRs, aim for at most ~5 high-value comments total; prioritize `CRITICAL`, then `WARNING`, and include `SUGGESTION`s only when few or no higher-severity findings exist. This cap is about not padding with marginal suggestions — it is not a reason to drop a genuine `WARNING` or `CRITICAL` finding.
 - Never pad the review. Returning `{"reviews": []}` for a clean PR is a correct and desirable outcome.
+- Every comment reports a problem. Never post a comment that concludes the line is fine, withdraws itself ("no issue here", "retracted", "disregard"), or only confirms that the code is correct. If you decide a line has no problem, leave it out of `reviews`.
+- A comment that depends on code outside the diff (whether a helper throws, whether middleware runs, whether a value is checked elsewhere) is a question, and its severity is `SUGGESTION` at most. Treat a call to an authorisation or validation helper as doing what its name says.
 
 ---
 
@@ -97,7 +100,7 @@ A PR is often reviewed more than once as new commits are pushed. If a "Prior rev
 - `WARNING`: Likely bugs or problems that could cause failures in production.
 - `SUGGESTION`: Consistency improvements, best practices, or code quality enhancements.
 
-The repository rules may add examples of what belongs at each level for this codebase; follow them.
+When a repository rule names a severity for a pattern, use exactly that severity whenever the pattern appears in the changed code; do not lower it because the code looks intentional or the impact seems limited. The repository rules may add examples of what belongs at each level for this codebase; follow them.
 
 ---
 
