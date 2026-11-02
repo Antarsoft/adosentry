@@ -1,0 +1,4 @@
+{
+  "description": "Clean: a token-bucket rate limiter using tokio's mutex, checked arithmetic and no panics on input.",
+  "findings": []
+}
