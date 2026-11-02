@@ -351,6 +351,10 @@ function New-FileDiffBlock {
     Add-ParsedDiffToBuilder -Builder $builder -FullPath $fullPath -DiffLines $lines -TotalAdded $addedRef -TotalRemoved $removedRef -Notice $notice -Anchors $anchors -LineText $lineText
     $text = $builder.ToString()
 
+    # Git names the enclosing function after a hunk's second @@ ("@@ -1,3 +1,4 @@ function save(").
+    # Repository context uses it to find callers of a function whose body changed.
+    $hunkFunctions = @($lines | ForEach-Object { if ($_ -match '^@@ [^@]* @@ (.+)$') { $matches[1].Trim() } } | Where-Object { $_ } | Select-Object -Unique)
+
     return [PSCustomObject]@{
         File         = $File
         FullPath     = $fullPath
@@ -362,6 +366,7 @@ function New-FileDiffBlock {
         Tokens       = Get-EstimatedTokenCount -Text $text
         Truncated    = ($omittedLines -gt 0)
         OmittedLines = $omittedLines
+        HunkFunctions = $hunkFunctions
     }
 }
 
