@@ -65,6 +65,7 @@ evals/nextjs/server-action-no-auth/
 ```
 
 - `anchor` is a piece of text from exactly one added line. If the text appears on several added lines, add `"occurrence": N` to pick the Nth from the top. The finding counts as caught when a comment lands within `tolerance` lines of it (default 2) at `minSeverity` or above.
+- When a bug can fairly be reported on more than one line (a field and the line that writes it, a role binding and the role it names), list the other lines in `"alsoAt": [{ "anchor": "…" }]`. Each entry can also set its own `file`, `occurrence` and `tolerance`.
 - Plant every bug on an added line. The reviewer can only comment on added lines, so a bug that exists only as a removed line (a deleted check, say) needs a nearby added line for the comment to land on.
 - A sample with `"findings": []` is a clean sample: a realistic, correct change that should get no `CRITICAL` or `WARNING` comment. Every stack needs at least one. Clean samples are what keep a rules file from getting noisy.
 - Use placeholder code and names only. Planted secrets must be made up: `.gitleaks.toml` skips `evals/` so they do not fail the secret scan, which also means a real secret there would go unnoticed.
@@ -85,5 +86,7 @@ $env:AZURE_OPENAI_API_KEY = '<key>'
 ```
 
 `-Provider` is `anthropic`, `openai`, `azure` or `manual`. With `manual` no model is called: each sample's prompt is written to `evals/.work/<stack>/<sample>.prompt.md`, and any answer saved next to it as `<sample>.answer.json` is scored. The script prints a table per stack and run, lists every miss and every noisy comment, and exits with code 1 if a stack fails.
+
+Every answer is saved under `evals/.work/<model>/` (or `-WorkDir`). After you change a sample's `expect.json`, `-Rescore` scores the saved answers again without calling the model.
 
 Model answers vary from run to run, so use `-Runs 3` before you call a rules file done, and re-run the stacks you touched whenever the base prompt changes.

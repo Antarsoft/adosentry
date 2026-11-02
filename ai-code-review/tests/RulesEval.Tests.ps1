@@ -72,6 +72,13 @@ Describe 'Measure-EvalCase and Get-StackVerdict' {
         (Measure-EvalCase -Case $script:Case -Diff $script:Diff -Reviews @()).Findings[0].Status | Should -Be 'missed'
     }
 
+    It 'accepts a comment on an alsoAt line' {
+        $finding = [PSCustomObject]@{ id = 'bug'; file = '/src/app.ts'; anchor = 'eval(input)'; minSeverity = 'CRITICAL'; tolerance = 0; alsoAt = @([PSCustomObject]@{ anchor = 'const c = 3;' }) }
+        $case = [PSCustomObject]@{ Name = 'alt'; Findings = @($finding) }
+        (Measure-EvalCase -Case $case -Diff $script:Diff -Reviews @([PSCustomObject]@{ fileName = '/src/app.ts'; lineNumber = 4; severity = 'CRITICAL'; comment = 'x' })).Findings[0].Status | Should -Be 'caught'
+        (Measure-EvalCase -Case $case -Diff $script:Diff -Reviews @([PSCustomObject]@{ fileName = '/src/app.ts'; lineNumber = 2; severity = 'CRITICAL'; comment = 'x' })).Findings[0].Status | Should -Be 'missed'
+    }
+
     It 'fails a stack that misses a CRITICAL or comments on a clean sample' {
         $missed = Measure-EvalCase -Case $script:Case -Diff $script:Diff -Reviews @()
         (Get-StackVerdict -CaseResults @($missed)).Pass | Should -BeFalse
@@ -92,6 +99,7 @@ Describe 'ConvertFrom-ModelReviewJson' {
     It 'reads plain, fenced and wrapped JSON' {
         @(ConvertFrom-ModelReviewJson -Content '{"reviews":[]}').Count | Should -Be 0
         @(ConvertFrom-ModelReviewJson -Content "``````json`n{""reviews"":[{""fileName"":""/a"",""lineNumber"":1,""severity"":""WARNING"",""comment"":""c""}]}`n``````").Count | Should -Be 1
+        @(ConvertFrom-ModelReviewJson -Content '{"reviews":["[{\"fileName\":\"/a\",\"lineNumber\":1,\"severity\":\"WARNING\",\"comment\":\"c\"}]"]}').Count | Should -Be 1
         @(ConvertFrom-ModelReviewJson -Content 'Here you go: {"reviews":[{"fileName":"/a","lineNumber":1,"severity":"WARNING","comment":"c"}]}').Count | Should -Be 1
     }
 }

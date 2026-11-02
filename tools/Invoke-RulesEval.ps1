@@ -17,6 +17,11 @@
     WARNINGs are caught, and no clean sample gets a CRITICAL or WARNING comment. Results vary
     between runs, so use -Runs 3 before calling a rules file done.
 
+    With a model provider, every answer is saved to -WorkDir/<model>/<stack>/<sample>.run<N>.json.
+
+    -Rescore scores the answers saved by an earlier run of the same -Model and -Runs again,
+    without calling the model, after a change to the samples' expectations.
+
     -Provider manual makes no model call: it writes each sample's prompt to -WorkDir, and scores
     any answer JSON found there as <stack>/<sample>.answer.json. That is how a rules file is
     checked by hand or with a model reached some other way.
@@ -42,6 +47,7 @@ param(
     [int]$Runs = 1,
     [double]$MinWarningRecall = 0.8,
     [string]$WorkDir = '',
+    [switch]$Rescore,
     [string]$ReportPath = ''
 )
 
@@ -53,7 +59,7 @@ $evalRoot = Join-Path $repoRoot 'evals'
 $rulesRoot = Join-Path $repoRoot 'examples' 'rules'
 $basePrompt = Join-Path $repoRoot 'ai-code-review' 'prompts' 'base.codereviewprompt.md'
 
-if ($Provider -ne 'manual') {
+if ($Provider -ne 'manual' -and -not $Rescore) {
     if (-not $Model) { throw '-Model is required unless -Provider is manual.' }
     if (-not $ApiKey) {
         $ApiKey = switch ($Provider) {
@@ -80,6 +86,7 @@ $report.Add('')
 $report.Add('| Stack | Run | CRITICAL caught | WARNING caught | Noise on clean | Other comments | Result |')
 $report.Add('| --- | --- | --- | --- | --- | --- | --- |')
 $details = [System.Collections.Generic.List[string]]::new()
+$summary = [System.Collections.Generic.List[string]]::new()
 $allPass = $true
 $inputTokens = 0
 $outputTokens = 0
@@ -90,8 +97,10 @@ foreach ($stackName in $stacks) {
     $systemPrompt = Get-SystemPromptText -PathToReviewFile $rulesFile -PromptMode 'rules' -BasePromptFile $basePrompt
     $cases = @(Get-ChildItem -Directory -Path (Join-Path $evalRoot $stackName) | Sort-Object Name | ForEach-Object { Get-EvalCase -CasePath $_.FullName })
 
+    $stackResults = [System.Collections.Generic.List[object]]::new()
     for ($run = 1; $run -le $Runs; $run++) {
         $caseResults = [System.Collections.Generic.List[object]]::new()
+        $unusable = 0
         foreach ($case in $cases) {
             $diff = Get-EvalCaseDiff -CasePath $case.Path
             # Validate every anchor before spending tokens on the sample.
@@ -106,15 +115,35 @@ foreach ($stackName in $stacks) {
                 if (-not (Test-Path $answerPath)) { continue }
                 $reviews = ConvertFrom-ModelReviewJson -Content (Get-Content -Raw -Path $answerPath)
             }
+            elseif ($Rescore) {
+                $savedPath = Join-Path $WorkDir ($Model -replace '[^A-Za-z0-9._-]', '_') $stackName "$($case.Name).run$run.json"
+                if (-not (Test-Path $savedPath)) { throw "No saved answer at $savedPath." }
+                $reviews = ConvertFrom-ModelReviewJson -Content (Get-Content -Raw -Path $savedPath)
+            }
             else {
-                $answer = Invoke-EvalModel -Provider $Provider -Model $Model -ApiKey $ApiKey -Endpoint $Endpoint -SystemPrompt $systemPrompt -UserMessage $userMessage -ReasoningEffort $ReasoningEffort
-                $reviews = $answer.Reviews
+                try {
+                    $answer = Invoke-EvalModel -Provider $Provider -Model $Model -ApiKey $ApiKey -Endpoint $Endpoint -SystemPrompt $systemPrompt -UserMessage $userMessage -ReasoningEffort $ReasoningEffort
+                }
+                catch [System.ArgumentException], [System.Management.Automation.RuntimeException] {
+                    # An answer that is not valid review JSON fails the batch in the pipeline too,
+                    # so it counts against the stack instead of stopping the whole run.
+                    if ($_.Exception -is [Microsoft.PowerShell.Commands.HttpResponseException]) { throw }
+                    $unusable++
+                    $details.Add("- ${stackName}/$($case.Name) run ${run}: unusable answer: $(($_.Exception.Message -split "`n")[0])")
+                    $answer = [PSCustomObject]@{ Reviews = @(); InputTokens = 0; OutputTokens = 0 }
+                }
+                $reviews = @($answer.Reviews)
+                # Keep every answer so misses and noise can be read in full when tuning a rule.
+                $answerDir = Join-Path $WorkDir ($Model -replace '[^A-Za-z0-9._-]', '_') $stackName
+                New-Item -ItemType Directory -Force -Path $answerDir | Out-Null
+                @{ reviews = @($reviews) } | ConvertTo-Json -Depth 10 | Set-Content -Path (Join-Path $answerDir "$($case.Name).run$run.json") -Encoding utf8NoBOM
                 $inputTokens += $answer.InputTokens
                 $outputTokens += $answer.OutputTokens
             }
 
             $result = Measure-EvalCase -Case $case -Diff $diff -Reviews $reviews
             $caseResults.Add($result)
+            $stackResults.Add($result)
             foreach ($f in $result.Findings) {
                 if ($f.Status -ne 'caught') { $details.Add("- ${stackName}/$($case.Name) run ${run}: $($f.Id) (line $($f.Line), $($f.MinSeverity)) $($f.Status)") }
             }
@@ -128,12 +157,31 @@ foreach ($stackName in $stacks) {
             continue
         }
         $verdict = Get-StackVerdict -CaseResults $caseResults -MinWarningRecall $MinWarningRecall
+        if ($unusable -gt 0) {
+            $verdict.Pass = $false
+            $verdict.Reasons = @($verdict.Reasons) + "$unusable unusable answer(s)"
+        }
         if (-not $verdict.Pass) { $allPass = $false }
         $resultText = if ($verdict.Pass) { 'pass' } else { 'FAIL: ' + ($verdict.Reasons -join '; ') }
+        Write-Host "Finished $stackName run $run`: $(if ($verdict.Pass) { 'pass' } else { 'FAIL' })"
         $report.Add("| $stackName | $run | $($verdict.CriticalCaught)/$($verdict.CriticalTotal) | $($verdict.WarningCaught)/$($verdict.WarningTotal) | $($verdict.CleanNoise) | $($verdict.Extras) | $resultText |")
+    }
+    if ($stackResults.Count -gt 0) {
+        $all = Get-StackVerdict -CaseResults $stackResults
+        $pct = { param($a, $b) if ($b -eq 0) { '-' } else { "$([math]::Round(100 * $a / $b))%" } }
+        $cleanRuns = @($stackResults | Where-Object { $_.Clean }).Count
+        $summary.Add("| $stackName | $(& $pct $all.CriticalCaught $all.CriticalTotal) | $(& $pct $all.WarningCaught $all.WarningTotal) | $($all.CleanNoise) in $cleanRuns |")
     }
 }
 
+if ($summary.Count -gt 0) {
+    $report.Add('')
+    $report.Add("## All runs together")
+    $report.Add('')
+    $report.Add('| Stack | CRITICAL caught | WARNING caught | CRITICAL or WARNING comments on clean samples |')
+    $report.Add('| --- | --- | --- | --- |')
+    foreach ($line in $summary) { $report.Add($line) }
+}
 if ($details.Count -gt 0) {
     $report.Add('')
     $report.Add('## Misses and noise')

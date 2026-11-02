@@ -123,6 +123,27 @@ function Resolve-FindingLine {
     return $hits[0]
 }
 
+function Resolve-FindingLocations {
+    param($Finding, $Diff)
+
+    # A bug can often be reported fairly on more than one line (a field and the line that writes
+    # it, a binding and the role it names). "alsoAt" lists those other lines, each with an
+    # anchor and optionally its own file, occurrence and tolerance.
+    $tol = if ($Finding.PSObject.Properties['tolerance']) { [int]$Finding.tolerance } else { 2 }
+    $locations = [System.Collections.Generic.List[object]]::new()
+    $locations.Add([PSCustomObject]@{ File = [string]$Finding.file; Line = (Resolve-FindingLine -Finding $Finding -Diff $Diff); Tolerance = $tol })
+    if ($Finding.PSObject.Properties['alsoAt']) {
+        foreach ($alt in @($Finding.alsoAt)) {
+            $altFile = if ($alt.PSObject.Properties['file']) { [string]$alt.file } else { [string]$Finding.file }
+            $altFinding = [PSCustomObject]@{ id = "$($Finding.id) (alsoAt)"; file = $altFile; anchor = [string]$alt.anchor }
+            if ($alt.PSObject.Properties['occurrence']) { $altFinding | Add-Member -NotePropertyName occurrence -NotePropertyValue $alt.occurrence }
+            $altTol = if ($alt.PSObject.Properties['tolerance']) { [int]$alt.tolerance } else { $tol }
+            $locations.Add([PSCustomObject]@{ File = $altFile; Line = (Resolve-FindingLine -Finding $altFinding -Diff $Diff); Tolerance = $altTol })
+        }
+    }
+    return $locations.ToArray()
+}
+
 function ConvertFrom-ModelReviewJson {
     param([string]$Content)
 
@@ -136,7 +157,9 @@ function ConvertFrom-ModelReviewJson {
     }
     $parsed = $text | ConvertFrom-Json -ErrorAction Stop
     if (-not $parsed.PSObject.Properties['reviews']) { throw 'The model answer has no "reviews" field.' }
-    return @($parsed.reviews)
+    $items = @($parsed.reviews)
+    if ($items.Count -eq 1 -and $items[0] -is [string]) { $items = @($items[0] | ConvertFrom-Json -ErrorAction Stop) }
+    return @($items | ForEach-Object { if ($_.PSObject.Properties['reviews'] -and -not $_.PSObject.Properties['fileName']) { $_.reviews } else { $_ } })
 }
 
 function Measure-EvalCase {
@@ -147,15 +170,16 @@ function Measure-EvalCase {
     $used = @{}
     $results = foreach ($finding in $Case.Findings) {
         $line = Resolve-FindingLine -Finding $finding -Diff $Diff
-        $tol = if ($finding.PSObject.Properties['tolerance']) { [int]$finding.tolerance } else { $Tolerance }
+        $locations = @(Resolve-FindingLocations -Finding $finding -Diff $Diff)
+        if (-not $finding.PSObject.Properties['tolerance']) { $locations[0].Tolerance = $Tolerance }
         $minRank = $script:SeverityRank[([string]$finding.minSeverity).ToUpperInvariant()]
         $best = $null
         for ($i = 0; $i -lt $kept.Count; $i++) {
             $review = $kept[$i]
             $reviewFile = ([string]$review.fileName)
             if (-not $reviewFile.StartsWith('/')) { $reviewFile = "/$reviewFile" }
-            if ($reviewFile -ne [string]$finding.file) { continue }
-            if ([math]::Abs([int]$review.lineNumber - $line) -gt $tol) { continue }
+            $near = @($locations | Where-Object { $_.File -eq $reviewFile -and [math]::Abs([int]$review.lineNumber - $_.Line) -le $_.Tolerance })
+            if ($near.Count -eq 0) { continue }
             $rank = $script:SeverityRank[([string]$review.severity).ToUpperInvariant()]
             if (-not $rank) { $rank = 0 }
             if ($null -eq $best -or $rank -gt $best.Rank) { $best = [PSCustomObject]@{ Index = $i; Rank = $rank } }
@@ -202,6 +226,24 @@ function New-ReviewSchema {
     }
 }
 
+function Invoke-EvalRequest {
+    param([string]$Uri, [hashtable]$Headers, [string]$Body, [int]$MaxAttempts = 5)
+
+    # Rate limits and overloads are normal during a long eval run; retry them with backoff.
+    for ($attempt = 1; ; $attempt++) {
+        try {
+            return Invoke-RestMethod -Method Post -Uri $Uri -Headers $Headers -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($Body))
+        }
+        catch {
+            $status = 0
+            if ($_.Exception.Response) { $status = [int]$_.Exception.Response.StatusCode }
+            $retryable = $status -in @(408, 409, 429, 500, 502, 503, 504, 529) -or $status -eq 0
+            if (-not $retryable -or $attempt -ge $MaxAttempts) { throw }
+            Start-Sleep -Seconds ([math]::Min(60, [math]::Pow(2, $attempt)))
+        }
+    }
+}
+
 function Invoke-EvalModel {
     param(
         [ValidateSet('anthropic', 'openai', 'azure')]
@@ -216,22 +258,43 @@ function Invoke-EvalModel {
 
     $schema = New-ReviewSchema
     if ($Provider -eq 'anthropic') {
-        # A forced tool call is Anthropic's structured-output route: the tool input is the review JSON.
+        # A forced tool call is Anthropic's structured-output route: the tool input is the review
+        # JSON. Models that reason before answering refuse a forced tool, so those get
+        # tool_choice auto and the JSON is read from a tool call or from the text.
         $uri = if ($Endpoint) { $Endpoint } else { 'https://api.anthropic.com/v1/messages' }
-        $body = [ordered]@{
+        $headers = @{ 'x-api-key' = $ApiKey; 'anthropic-version' = '2023-06-01' }
+        $request = [ordered]@{
             model       = $Model
-            max_tokens  = 8192
+            max_tokens  = 16000
             system      = $SystemPrompt
             messages    = @(@{ role = 'user'; content = $UserMessage })
-            tools       = @(@{ name = 'submit_review'; description = 'Submit the code review result.'; input_schema = $schema })
+            tools       = @(@{ name = 'submit_review'; description = 'Submit the code review result. Always call this exactly once with the full review.'; input_schema = $schema })
             tool_choice = @{ type = 'tool'; name = 'submit_review' }
-        } | ConvertTo-Json -Depth 50
-        $headers = @{ 'x-api-key' = $ApiKey; 'anthropic-version' = '2023-06-01' }
-        $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body))
+        }
+        try {
+            $response = Invoke-EvalRequest -Uri $uri -Headers $headers -Body ($request | ConvertTo-Json -Depth 50)
+        }
+        catch {
+            if ("$($_.ErrorDetails.Message) $($_.Exception.Message)" -notmatch 'tool_choice') { throw }
+            $request.tool_choice = @{ type = 'auto' }
+            $response = Invoke-EvalRequest -Uri $uri -Headers $headers -Body ($request | ConvertTo-Json -Depth 50)
+        }
         $tool = @($response.content | Where-Object { $_.type -eq 'tool_use' })[0]
-        if (-not $tool) { throw "The model returned no review (stop_reason: $($response.stop_reason))." }
+        $reviews = if ($tool -and $tool.input.reviews -is [string]) {
+            # Some models put the array in the tool input as a JSON string.
+            ConvertFrom-ModelReviewJson -Content ('{"reviews":' + $tool.input.reviews + '}')
+        }
+        elseif ($tool) {
+            # Some models nest the whole answer one level down: { reviews: [ { reviews: [...] } ] }.
+            @($tool.input.reviews | ForEach-Object { if ($_.PSObject.Properties['reviews'] -and -not $_.PSObject.Properties['fileName']) { $_.reviews } else { $_ } })
+        }
+        else {
+            $text = (@($response.content | Where-Object { $_.type -eq 'text' }) | ForEach-Object { $_.text }) -join "`n"
+            if ([string]::IsNullOrWhiteSpace($text)) { throw "The model returned no review (stop_reason: $($response.stop_reason))." }
+            ConvertFrom-ModelReviewJson -Content $text
+        }
         return [PSCustomObject]@{
-            Reviews      = @($tool.input.reviews)
+            Reviews      = $reviews
             InputTokens  = [int]$response.usage.input_tokens
             OutputTokens = [int]$response.usage.output_tokens
         }
@@ -247,7 +310,7 @@ function Invoke-EvalModel {
     if ($ReasoningEffort) { $bodyTable['reasoning_effort'] = $ReasoningEffort }
     $headers = if ($Provider -eq 'azure') { @{ 'api-key' = $ApiKey } } else { @{ 'Authorization' = "Bearer $ApiKey" } }
     $body = $bodyTable | ConvertTo-Json -Depth 50
-    $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $headers -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body))
+    $response = Invoke-EvalRequest -Uri $uri -Headers $headers -Body $body
     $content = [string]@($response.choices)[0].message.content
     return [PSCustomObject]@{
         Reviews      = ConvertFrom-ModelReviewJson -Content $content
